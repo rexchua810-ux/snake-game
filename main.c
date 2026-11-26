@@ -1,6 +1,7 @@
 #include <stdio.h>    // snprintf
 #include <stdlib.h>
 #include <time.h>
+#include <math.h>     // sinf
 #include "raylib.h"
 
 // ===== 画面大小 =====
@@ -34,7 +35,6 @@
 
 // ===== ★ 赛博朋克配色 =====
 #define BG_COLOR     (Color){ 12, 6, 28, 255 }     // 深紫黑背景
-#define GRID_COLOR   (Color){ 40, 18, 70, 255 }    // 暗紫格线
 #define NEON_PINK    (Color){ 255, 45, 200, 255 }
 #define NEON_CYAN    (Color){ 0, 240, 255, 255 }
 #define NEON_PURPLE  (Color){ 170, 80, 255, 255 }
@@ -42,6 +42,12 @@
 #define NEON_RED     (Color){ 255, 50, 80, 255 }
 #define NEON_ORANGE  (Color){ 255, 140, 0, 255 }
 #define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
+
+// ===== ★ 金属地板配色 =====
+#define PLATE_COLOR  (Color){ 30, 28, 42, 255 }    // 钢板底色
+#define PLATE_LIGHT  (Color){ 52, 50, 68, 255 }    // 钢板左上亮边
+#define PLATE_DARK   (Color){ 14, 12, 22, 255 }    // 钢板右下暗边
+#define RIVET_COLOR  (Color){ 75, 72, 95, 255 }    // 螺丝钉
 
 // 地图格子里的东西
 #define EMPTY    0
@@ -89,6 +95,7 @@ typedef struct {
     Texture2D apple;     // 苹果
     Texture2D booster;   // 道具
     Texture2D obstacle;  // 障碍物
+    Texture2D floor;     // ★ 地板（可以不画，没有的话程序会自己画金属钢板）
 } Textures;
 
 // 整个游戏的资料都放在这里
@@ -634,7 +641,16 @@ Texture2D loadImage(const char *path)
     if (FileExists(path))
     {
         texture = LoadTexture(path);
-        SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // 像素图放大时保持锐利，不会糊掉
+        if (texture.width > 64)
+        {
+            // 大图（例如 512x512）要缩小很多：先做好几个缩小版本，缩小时才不会出现锯齿
+            GenTextureMipmaps(&texture);
+            SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
+        }
+        else
+        {
+            SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // 小像素图放大时保持锐利
+        }
     }
     return texture;
 }
@@ -648,6 +664,7 @@ void loadTextures(Textures *t)
     t->apple    = loadImage("assets/apple.png");
     t->booster  = loadImage("assets/booster.png");
     t->obstacle = loadImage("assets/obstacle.png");
+    t->floor    = loadImage("assets/floor.png");
 }
 
 // ★ 释放所有图片（id 是 0 表示没读到，不用释放）
@@ -659,6 +676,7 @@ void unloadTextures(Textures *t)
     if (t->apple.id > 0)    UnloadTexture(t->apple);
     if (t->booster.id > 0)  UnloadTexture(t->booster);
     if (t->obstacle.id > 0) UnloadTexture(t->obstacle);
+    if (t->floor.id > 0)    UnloadTexture(t->floor);
 }
 
 // ================= 画面 =================
@@ -692,8 +710,8 @@ float directionToAngle(int dx, int dy)
     return 270;
 }
 
-// ★ 在第 (x, y) 格画一张图，可以旋转。没有图片就画一个色块代替
-void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, Color fallback)
+// 在第 (x, y) 格画一张图，可以旋转；flip = 1 时左右翻转。没有图片就画一个色块代替
+void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip, Color fallback)
 {
     float cell = g->cell;
     float left = g->offsetX + x * cell;
@@ -706,6 +724,8 @@ void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, Color fal
     }
 
     Rectangle source = { 0, 0, texture.width, texture.height };      // 整张图
+    if (flip)
+        source.width = -source.width;                                 // ★ 宽度变负的 = 左右翻转
     Rectangle dest = { left + cell / 2, top + cell / 2, cell, cell }; // 画在格子中心
     Vector2 origin = { cell / 2, cell / 2 };                          // 绕着中心旋转
     DrawTexturePro(texture, source, dest, origin, angle, WHITE);
@@ -722,7 +742,7 @@ void drawSnake(Game *g)
     if (g->speedTimer > 0)
         bodyColor = NEON_YELLOW;
     for (int i = 1; i < s->length - 1; i++)
-        drawSprite(g, t->body, s->x[i], s->y[i], 0, bodyColor);
+        drawSprite(g, t->body, s->x[i], s->y[i], 0, 0, bodyColor);
 
     // 尾巴：朝向“前一节”的方向
     int last = s->length - 1;
@@ -732,15 +752,65 @@ void drawSnake(Game *g)
     if (dx < -1) dx = 1;
     if (dy > 1)  dy = -1;
     if (dy < -1) dy = 1;
-    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), NEON_PURPLE);
+    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), 0, NEON_PURPLE);
 
-    // 头：朝目前移动的方向，最后画才会盖在最上面
-    drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), NEON_PINK);
+    // ★ 头：最后画才会盖在最上面
+    //   往左走时用“左右翻转”而不是转 180 度，侧面的头才不会上下颠倒
+    if (s->dirX == -1)
+        drawSprite(g, t->head, s->x[0], s->y[0], 0, 1, NEON_PINK);
+    else
+        drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), 0, NEON_PINK);
 
     // ★ 加速中：蛇头外面加一圈黄色的光
     if (g->speedTimer > 0)
         DrawRectangleLines(g->offsetX + s->x[0] * g->cell, g->offsetY + s->y[0] * g->cell,
                            g->cell, g->cell, NEON_YELLOW);
+}
+
+// ★ 用代码画一块金属钢板（一格）：底色 + 左上亮边 + 右下暗边 + 四角螺丝钉
+void drawMetalPlate(Game *g, int x, int y)
+{
+    int c = g->cell;
+    int left = g->offsetX + x * c;
+    int top  = g->offsetY + y * c;
+
+    DrawRectangle(left, top, c, c, PLATE_COLOR);
+    DrawLine(left, top + 1, left + c, top + 1, PLATE_LIGHT);            // 上亮边
+    DrawLine(left + 1, top, left + 1, top + c, PLATE_LIGHT);            // 左亮边
+    DrawLine(left, top + c - 1, left + c, top + c - 1, PLATE_DARK);     // 下暗边
+    DrawLine(left + c - 1, top, left + c - 1, top + c, PLATE_DARK);     // 右暗边
+
+    if (c >= 24)              // 格子够大才画螺丝钉，太小会挤成一团
+    {
+        float r = c / 16.0f + 1;   // 螺丝钉的半径
+        int d = c / 6;             // 螺丝钉离角落多远
+        DrawCircle(left + d,     top + d,     r, RIVET_COLOR);
+        DrawCircle(left + c - d, top + d,     r, RIVET_COLOR);
+        DrawCircle(left + d,     top + c - d, r, RIVET_COLOR);
+        DrawCircle(left + c - d, top + c - d, r, RIVET_COLOR);
+    }
+}
+
+// ★ 发光的能量线路：格线的亮度会随时间慢慢变亮、变暗
+void drawEnergyGrid(Game *g)
+{
+    // sinf 的结果在 -1 ~ 1 之间，所以透明度在 0.2 ~ 0.5 之间来回变化
+    float glow = 0.35f + 0.15f * sinf(GetTime() * 2);
+    Color line = Fade(NEON_PURPLE, glow);
+
+    int right  = g->offsetX + g->width * g->cell;
+    int bottom = g->offsetY + g->height * g->cell;
+
+    for (int x = 0; x <= g->width; x++)        // 直线
+    {
+        int px = g->offsetX + x * g->cell;
+        DrawLine(px, g->offsetY, px, bottom, line);
+    }
+    for (int y = 0; y <= g->height; y++)       // 横线
+    {
+        int py = g->offsetY + y * g->cell;
+        DrawLine(g->offsetX, py, right, py, line);
+    }
 }
 
 // 画开始画面
@@ -782,19 +852,32 @@ void drawPlaying(Game *g)
 {
     Textures *t = &g->textures;
 
-    // 地图：格线 + 食物、障碍物、道具
+    // ★ 1. 地板：有 floor.png 就用图片，没有就用代码画金属钢板
     for (int y = 0; y < g->height; y++)
     {
         for (int x = 0; x < g->width; x++)
         {
-            DrawRectangleLines(g->offsetX + x * g->cell, g->offsetY + y * g->cell,
-                               g->cell, g->cell, GRID_COLOR);
+            if (t->floor.id > 0)
+                drawSprite(g, t->floor, x, y, 0, 0, PLATE_COLOR);
+            else
+                drawMetalPlate(g, x, y);
+        }
+    }
+
+    // ★ 2. 发光的能量线路
+    drawEnergyGrid(g);
+
+    // 3. 食物、障碍物、道具
+    for (int y = 0; y < g->height; y++)
+    {
+        for (int x = 0; x < g->width; x++)
+        {
             if (g->map[y][x] == FOOD)
-                drawSprite(g, t->apple, x, y, 0, NEON_RED);
+                drawSprite(g, t->apple, x, y, 0, 0, NEON_RED);
             else if (g->map[y][x] == OBSTACLE)
-                drawSprite(g, t->obstacle, x, y, 0, NEON_ORANGE);
+                drawSprite(g, t->obstacle, x, y, 0, 0, NEON_ORANGE);
             else if (g->map[y][x] == BOOSTER)
-                drawSprite(g, t->booster, x, y, 0, NEON_PURPLE);
+                drawSprite(g, t->booster, x, y, 0, 0, NEON_PURPLE);
         }
     }
 
