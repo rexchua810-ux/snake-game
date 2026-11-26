@@ -20,7 +20,7 @@
 #define START_LIVES   1     // 一开始有几条命
 #define MESSAGE_TIME  1.5f  // 提示文字显示几秒
 #define SNAKE_SCALE   1.5f  // ★ 蛇的图片画成格子的几倍大（越大蛇越粗）
-#define HEAD_SCALE    1.25f // ★ 蛇头画成格子的几倍大（头比较宽，所以小一点才不会像一颗球）
+#define HEAD_SCALE    1.0f  // ★ 蛇头画成格子的几倍大（头比较宽，所以小一点才不会像一颗球）
 
 // ★ 关卡
 #define FOODS_PER_LEVEL 5      // 每吃 5 个食物升一级
