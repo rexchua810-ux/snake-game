@@ -273,22 +273,7 @@ void updateMenu(Game *g)
 
 // ================= 蛇的操控 =================
 
-// ★ 把整条蛇倒过来：第一节和最后一节交换、第二节和倒数第二节交换……
-void reverseSnake(Snake *s)
-{
-    for (int i = 0; i < s->length / 2; i++)
-    {
-        int j = s->length - 1 - i;
-        int tempX = s->x[i];
-        int tempY = s->y[i];
-        s->x[i] = s->x[j];
-        s->y[i] = s->y[j];
-        s->x[j] = tempX;
-        s->y[j] = tempY;
-    }
-}
-
-// ★ 改方向：如果是往“脖子”（第 2 节）的方向按，就把蛇整条倒过来
+// 改方向：如果新方向会走到“脖子”（第 2 节）的位置，就是掉头，不允许
 void setDirection(Game *g, int dx, int dy)
 {
     Snake *s = &g->snake;
@@ -298,17 +283,8 @@ void setDirection(Game *g, int dx, int dy)
     int nextY = (s->y[0] + dy + g->height) % g->height;
 
     if (nextX == s->x[1] && nextY == s->y[1])
-    {
-        reverseSnake(s);
-        // 新的头（原本的尾巴）往“远离第 2 节”的方向走
-        dx = s->x[0] - s->x[1];
-        dy = s->y[0] - s->y[1];
-        // 无边界模式下，两节可能隔着地图边缘（例如 0 和 width-1），换算回 1 或 -1
-        if (dx > 1)  dx = -1;
-        if (dx < -1) dx = 1;
-        if (dy > 1)  dy = -1;
-        if (dy < -1) dy = 1;
-    }
+        return;
+
     s->dirX = dx;
     s->dirY = dy;
 }
