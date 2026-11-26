@@ -9,6 +9,7 @@
 #define HUD_H    60         // 上方显示分数的区域高度
 #define BOARD    600        // 地图区域最大 600x600
 #define SCREEN_H (HUD_H + BOARD)
+#define BOARD_MARGIN 10     // ★ 地图四周留几像素给外框
 
 // ===== 游戏数值（录视频“现场改数值”可以改这些） =====
 #define MOVE_TIME     0.15f // 每 0.15 秒走一格（越小越快）
@@ -39,6 +40,7 @@
 #define BG_COLOR     (Color){ 12, 6, 28, 255 }     // 深紫黑背景
 #define NEON_PINK    (Color){ 255, 45, 200, 255 }
 #define NEON_CYAN    (Color){ 0, 240, 255, 255 }
+#define NEON_GREEN   (Color){ 0, 255, 170, 255 }   // ★ 青绿色：地图外框（跟紫色背景是对比色）
 #define NEON_PURPLE  (Color){ 170, 80, 255, 255 }
 #define NEON_YELLOW  (Color){ 255, 230, 0, 255 }
 #define NEON_RED     (Color){ 255, 50, 80, 255 }
@@ -46,10 +48,10 @@
 #define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
 
 // ===== ★ 金属地板配色 =====
-#define PLATE_COLOR  (Color){ 30, 28, 42, 255 }    // 钢板底色
-#define PLATE_LIGHT  (Color){ 52, 50, 68, 255 }    // 钢板左上亮边
-#define PLATE_DARK   (Color){ 14, 12, 22, 255 }    // 钢板右下暗边
-#define RIVET_COLOR  (Color){ 75, 72, 95, 255 }    // 螺丝钉
+#define PLATE_COLOR  (Color){ 34, 22, 54, 255 }    // 钢板底色（★ 偏紫色）
+#define PLATE_LIGHT  (Color){ 58, 40, 86, 255 }    // 钢板左上亮边
+#define PLATE_DARK   (Color){ 16, 10, 28, 255 }    // 钢板右下暗边
+#define RIVET_COLOR  (Color){ 88, 66, 122, 255 }   // 螺丝钉
 
 // 地图格子里的东西
 #define EMPTY    0
@@ -342,11 +344,12 @@ void resetGame(Game *g)
 // ★ 从开始画面按下 Enter：依照玩家选的大小要内存，然后开始游戏
 void startGame(Game *g)
 {
-    // 算出每格多大，让地图塞进 600x600 的区域
+    // 算出每格多大，让地图塞进 600x600 的区域（★ 四周留 BOARD_MARGIN，外框才不会跑出画面）
+    int space = BOARD - 2 * BOARD_MARGIN;
     if (g->width > g->height)
-        g->cell = BOARD / g->width;
+        g->cell = space / g->width;
     else
-        g->cell = BOARD / g->height;
+        g->cell = space / g->height;
 
     // 让地图在区域里置中
     g->offsetX = (SCREEN_W - g->width * g->cell) / 2;
@@ -737,6 +740,8 @@ Texture2D loadImage(const char *path)
         {
             SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // 小像素图放大时保持锐利
         }
+        // ★ 图片边缘不要“重复”：不然画到左边时会取到右边的像素，出现一条细细的线
+        SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
     }
     return texture;
 }
@@ -1045,6 +1050,24 @@ const char *modeHint(Game *g)
     return "Go through walls to the other side";
 }
 
+// ★ 画虚线框：每 12 像素画 8 像素、空 4 像素
+void drawDashedRect(Rectangle r, float thick, Color color)
+{
+    float dash = 8, step = 12;
+    for (float x = r.x; x < r.x + r.width; x += step)          // 上下两条
+    {
+        float w = fminf(dash, r.x + r.width - x);
+        DrawRectangleRec((Rectangle){ x, r.y, w, thick }, color);
+        DrawRectangleRec((Rectangle){ x, r.y + r.height - thick, w, thick }, color);
+    }
+    for (float y = r.y; y < r.y + r.height; y += step)         // 左右两条
+    {
+        float h = fminf(dash, r.y + r.height - y);
+        DrawRectangleRec((Rectangle){ r.x, y, thick, h }, color);
+        DrawRectangleRec((Rectangle){ r.x + r.width - thick, y, thick, h }, color);
+    }
+}
+
 // 画开始画面
 void drawMenu(Game *g)
 {
@@ -1107,14 +1130,19 @@ void drawPlaying(Game *g)
         }
     }
 
-    // 地图外框：经典模式粉红色（墙），无边界模式蓝色（可以穿过）。外面再加一圈淡淡的光
-    Color border = NEON_PINK;
-    if (g->mode == NO_WALLS)
-        border = NEON_CYAN;
+    // ★ 地图外框：青绿色（跟紫色背景对比）。经典模式是实线（墙），无边界模式是虚线（可以穿过）
     Rectangle frame = { g->offsetX - 3, g->offsetY - 3, g->width * g->cell + 6, g->height * g->cell + 6 };
     Rectangle glow  = { frame.x - 3, frame.y - 3, frame.width + 6, frame.height + 6 };
-    DrawRectangleLinesEx(glow, 3, Fade(border, 0.3f));
-    DrawRectangleLinesEx(frame, 2, border);
+    if (g->mode == CLASSIC)
+    {
+        DrawRectangleLinesEx(glow, 3, Fade(NEON_GREEN, 0.3f));   // 外面一圈淡淡的光
+        DrawRectangleLinesEx(frame, 2, NEON_GREEN);
+    }
+    else
+    {
+        drawDashedRect(glow, 3, Fade(NEON_GREEN, 0.25f));
+        drawDashedRect(frame, 2, NEON_GREEN);
+    }
 
     drawSnake(g);
 
