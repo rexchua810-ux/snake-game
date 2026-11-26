@@ -90,7 +90,8 @@ typedef struct {
 // ★ 所有图片（你画的像素图）
 typedef struct {
     Texture2D head;      // 蛇头（画成往右看）
-    Texture2D body;      // 蛇身
+    Texture2D body;      // 蛇身（直的，画成横的：左右两边接起来）
+    Texture2D corner;    // ★ 蛇身转角（画成接右边和下边）
     Texture2D tail;      // 蛇尾（画成往右走：尖端在左边）
     Texture2D apple;     // 苹果
     Texture2D booster;   // 道具
@@ -660,6 +661,7 @@ void loadTextures(Textures *t)
 {
     t->head     = loadImage("assets/head.png");
     t->body     = loadImage("assets/body.png");
+    t->corner   = loadImage("assets/corner.png");
     t->tail     = loadImage("assets/tail.png");
     t->apple    = loadImage("assets/apple.png");
     t->booster  = loadImage("assets/booster.png");
@@ -672,6 +674,7 @@ void unloadTextures(Textures *t)
 {
     if (t->head.id > 0)     UnloadTexture(t->head);
     if (t->body.id > 0)     UnloadTexture(t->body);
+    if (t->corner.id > 0)   UnloadTexture(t->corner);
     if (t->tail.id > 0)     UnloadTexture(t->tail);
     if (t->apple.id > 0)    UnloadTexture(t->apple);
     if (t->booster.id > 0)  UnloadTexture(t->booster);
@@ -731,37 +734,81 @@ void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip,
     DrawTexturePro(texture, source, dest, origin, angle, WHITE);
 }
 
-// ★ 画蛇：头、身体、尾巴分开画
+// ★ 算出第 i 节往第 j 节（相邻的一节）是哪个方向，结果放进 *dx、*dy
+void neighborDir(Snake *s, int i, int j, int *dx, int *dy)
+{
+    *dx = s->x[j] - s->x[i];
+    *dy = s->y[j] - s->y[i];
+    // 无边界模式：两节隔着地图边缘（例如 0 和 width-1）时，换算回 1 或 -1
+    if (*dx > 1)  *dx = -1;
+    if (*dx < -1) *dx = 1;
+    if (*dy > 1)  *dy = -1;
+    if (*dy < -1) *dy = 1;
+}
+
+// ★ 转角要转几度。corner.png 画的是“接右边和下边”，转 90 度就变成“接下边和左边”，以此类推
+float cornerAngle(int ax, int ay, int bx, int by)
+{
+    int right = (ax == 1  || bx == 1);
+    int left  = (ax == -1 || bx == -1);
+    int down  = (ay == 1  || by == 1);
+    int up    = (ay == -1 || by == -1);
+
+    if (right && down) return 0;
+    if (down && left)  return 90;
+    if (left && up)    return 180;
+    if (up && right)   return 270;
+    return 0;
+}
+
+// ★ 画蛇：每一节看前后两节在哪里，决定用直的还是转角，以及要转几度
 void drawSnake(Game *g)
 {
     Snake *s = &g->snake;
     Textures *t = &g->textures;
 
-    // 身体（加速中没有图片时用黄色）
+    // 加速中：没有图片时用黄色色块
     Color bodyColor = NEON_CYAN;
     if (g->speedTimer > 0)
         bodyColor = NEON_YELLOW;
-    for (int i = 1; i < s->length - 1; i++)
-        drawSprite(g, t->body, s->x[i], s->y[i], 0, 0, bodyColor);
 
-    // 尾巴：朝向“前一节”的方向
+    // 身体（第 1 节到倒数第 2 节）
+    for (int i = 1; i < s->length - 1; i++)
+    {
+        int ax, ay, bx, by;
+        neighborDir(s, i, i - 1, &ax, &ay);   // 往头那边的方向
+        neighborDir(s, i, i + 1, &bx, &by);   // 往尾巴那边的方向
+
+        if (ax == -bx && ay == -by)           // 两个方向相反 → 直的
+        {
+            float angle = 0;                  // 横的
+            if (ax == 0)
+                angle = 90;                   // 直的（上下）
+            drawSprite(g, t->body, s->x[i], s->y[i], angle, 0, bodyColor);
+        }
+        else                                  // 否则 → 转角
+        {
+            Texture2D piece = t->corner;
+            if (piece.id == 0)                // 还没画转角，先用直的代替
+                piece = t->body;
+            drawSprite(g, piece, s->x[i], s->y[i], cornerAngle(ax, ay, bx, by), 0, bodyColor);
+        }
+    }
+
+    // 尾巴：朝向“前一节”的方向（tail.png 画成接右边、尖端朝左）
     int last = s->length - 1;
-    int dx = s->x[last - 1] - s->x[last];
-    int dy = s->y[last - 1] - s->y[last];
-    if (dx > 1)  dx = -1;      // 无边界模式：两节隔着地图边缘时换算回 1 或 -1
-    if (dx < -1) dx = 1;
-    if (dy > 1)  dy = -1;
-    if (dy < -1) dy = 1;
+    int dx, dy;
+    neighborDir(s, last, last - 1, &dx, &dy);
     drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), 0, NEON_PURPLE);
 
-    // ★ 头：最后画才会盖在最上面
+    // 头：最后画才会盖在最上面
     //   往左走时用“左右翻转”而不是转 180 度，侧面的头才不会上下颠倒
     if (s->dirX == -1)
         drawSprite(g, t->head, s->x[0], s->y[0], 0, 1, NEON_PINK);
     else
         drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), 0, NEON_PINK);
 
-    // ★ 加速中：蛇头外面加一圈黄色的光
+    // 加速中：蛇头外面加一圈黄色的光
     if (g->speedTimer > 0)
         DrawRectangleLines(g->offsetX + s->x[0] * g->cell, g->offsetY + s->y[0] * g->cell,
                            g->cell, g->cell, NEON_YELLOW);
