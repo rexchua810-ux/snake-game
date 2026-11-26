@@ -76,7 +76,18 @@ typedef struct {
     int *x;          // 每一节的 x，x[0] 是头
     int *y;          // 每一节的 y
     int length;      // 现在有几节
-    int dirX, dirY;  // 移动方向
+    int dirX, dirY;  // 移动方向（上一步真正走的方向）
+
+    // ★ 按键排队：一步之内按了两个键（例如快速 W 再 A），两个都会照顺序用到，不会被吃掉
+    int queueX[2], queueY[2];
+    int queueCount;
+
+    // ★ 平滑移动要用的资料
+    int prevTailX, prevTailY;     // 尾巴上一步在哪一格（画的时候从这里滑过去）
+    int tailDirX, tailDirY;       // 尾巴这一步往哪个方向滑
+    int oldTailDirX, oldTailDirY; // 尾巴上一步的方向（转弯时用来慢慢转过去）
+    int headFlip;                 // 1 = 头的图片左右翻转（最后一次横着走是往左）
+    int headRolling;              // 1 = 这一步头正在翻面
 } Snake;
 
 // ★ 所有音效
@@ -149,6 +160,25 @@ int isOnSnake(Snake *s, int x, int y)
         if (s->x[i] == x && s->y[i] == y)
             return 1;
     return 0;
+}
+
+// ★ 从格子 (ax, ay) 往相邻的格子 (bx, by) 是哪个方向，结果放进 *dx、*dy
+void neighborDir(int ax, int ay, int bx, int by, int *dx, int *dy)
+{
+    *dx = bx - ax;
+    *dy = by - ay;
+    // 无边界模式：两格隔着地图边缘（例如 0 和 width-1）时，换算回 1 或 -1
+    if (*dx > 1)  *dx = -1;
+    if (*dx < -1) *dx = 1;
+    if (*dy > 1)  *dy = -1;
+    if (*dy < -1) *dy = 1;
+}
+
+// ★ 第 i 节往第 j 节是哪个方向
+void segmentDir(Game *g, int i, int j, int *dx, int *dy)
+{
+    Snake *s = &g->snake;
+    neighborDir(s->x[i], s->y[i], s->x[j], s->y[j], dx, dy);
 }
 
 // ★ 检查 (x, y) 能不能放这种东西
@@ -273,6 +303,16 @@ void resetSnake(Game *g)
         g->snake.x[i] = g->width / 2 - i;
         g->snake.y[i] = g->height / 2;
     }
+    g->snake.queueCount = 0;
+    g->snake.headFlip = 0;
+    g->snake.headRolling = 0;
+    g->snake.prevTailX = g->snake.x[2];   // 尾巴不动
+    g->snake.prevTailY = g->snake.y[2];
+    g->snake.tailDirX = 1;
+    g->snake.tailDirY = 0;
+    g->snake.oldTailDirX = 1;
+    g->snake.oldTailDirY = 0;
+    g->timer = 0;
 }
 
 // 开始新的一局（地图大小不变）
@@ -402,20 +442,41 @@ void updateMenu(Game *g)
 
 // ================= 蛇的操控 =================
 
-// 改方向：如果新方向会走到“脖子”（第 2 节）的位置，就是掉头，不允许
+// ★ 按下方向键：先放进排队，等蛇真的走下一步时才转弯
+//   跟“排在最后的方向”比较：一样的不用排，相反的（掉头）不允许
 void setDirection(Game *g, int dx, int dy)
 {
     Snake *s = &g->snake;
 
-    // 头往这个方向走一格会到哪里（无边界模式要绕到对面，所以用 %）
-    int nextX = (s->x[0] + dx + g->width) % g->width;
-    int nextY = (s->y[0] + dy + g->height) % g->height;
+    int lastX = s->dirX, lastY = s->dirY;
+    if (s->queueCount > 0)
+    {
+        lastX = s->queueX[s->queueCount - 1];
+        lastY = s->queueY[s->queueCount - 1];
+    }
 
-    if (nextX == s->x[1] && nextY == s->y[1])
+    if (dx == lastX && dy == lastY)       // 同方向
+        return;
+    if (dx == -lastX && dy == -lastY)     // 掉头
+        return;
+    if (s->queueCount >= 2)               // 排满了
         return;
 
-    s->dirX = dx;
-    s->dirY = dy;
+    s->queueX[s->queueCount] = dx;
+    s->queueY[s->queueCount] = dy;
+    s->queueCount++;
+}
+
+// ★ 走下一步之前：从排队里拿出一个方向来用
+void takeQueuedDirection(Snake *s)
+{
+    if (s->queueCount == 0)
+        return;
+    s->dirX = s->queueX[0];
+    s->dirY = s->queueY[0];
+    s->queueX[0] = s->queueX[1];          // 后面的往前移
+    s->queueY[0] = s->queueY[1];
+    s->queueCount--;
 }
 
 // 读 W/A/S/D
@@ -444,6 +505,12 @@ void applyBooster(Game *g)
         g->snake.length -= SHRINK_AMOUNT;
         if (g->snake.length < MIN_LENGTH)
             g->snake.length = MIN_LENGTH;
+        // ★ 尾巴直接变到新位置，这一步不用滑
+        g->snake.prevTailX = g->snake.x[g->snake.length - 1];
+        g->snake.prevTailY = g->snake.y[g->snake.length - 1];
+        segmentDir(g, g->snake.length - 1, g->snake.length - 2, &g->snake.tailDirX, &g->snake.tailDirY);
+        g->snake.oldTailDirX = g->snake.tailDirX;
+        g->snake.oldTailDirY = g->snake.tailDirY;
         showMessage(g, "Shrink!");
     }
     else  // EXTRA_LIFE
@@ -500,6 +567,7 @@ float getMoveTime(Game *g)
 void stepGame(Game *g)
 {
     Snake *s = &g->snake;
+    takeQueuedDirection(s);              // ★ 这时候才真的转弯
     int newX = s->x[0] + s->dirX;
     int newY = s->y[0] + s->dirY;
 
@@ -548,7 +616,9 @@ void stepGame(Game *g)
         g->map[newY][newX] = EMPTY;
     }
 
-    // 5. 移动
+    // 5. 移动（先记住尾巴原本在哪，画的时候要从那里滑过去）
+    int oldTailX = s->x[s->length - 1];
+    int oldTailY = s->y[s->length - 1];
     for (int i = s->length - 1; i > 0; i--)
     {
         s->x[i] = s->x[i - 1];
@@ -556,6 +626,22 @@ void stepGame(Game *g)
     }
     s->x[0] = newX;
     s->y[0] = newY;
+
+    // ★ 头的图片：横着走时决定要不要左右翻转（上下走时保持原本的，才不会突然翻面）
+    int newFlip = s->headFlip;
+    if (s->dirX != 0)
+        newFlip = (s->dirX == -1);
+    s->headRolling = (newFlip != s->headFlip);
+    s->headFlip = newFlip;
+
+    // ★ 尾巴：记住从哪一格滑到哪一格（吃到食物时尾巴不动）
+    s->oldTailDirX = s->tailDirX;
+    s->oldTailDirY = s->tailDirY;
+    s->prevTailX = oldTailX;
+    s->prevTailY = oldTailY;
+    int last = s->length - 1;
+    if (s->x[last] != oldTailX || s->y[last] != oldTailY)
+        neighborDir(oldTailX, oldTailY, s->x[last], s->y[last], &s->tailDirX, &s->tailDirY);
 
     // 6. 够分数就赢，不够就再放一个新食物
     if (ate)
@@ -601,10 +687,14 @@ void updatePlaying(Game *g)
         g->messageTimer -= dt;
 
     g->timer += dt;
-    if (g->timer >= getMoveTime(g))   // ★ 改用关卡算出来的速度
+    float moveTime = getMoveTime(g);   // ★ 改用关卡算出来的速度
+    if (g->timer >= moveTime)
     {
+        // ★ 用“减掉”而不是“归零”：多出来的一点点时间留给下一步，节奏才会均匀
+        g->timer -= moveTime;
+        if (g->timer > moveTime)       // 卡顿太久（例如拖动窗口）就不要补走好几步
+            g->timer = 0;
         stepGame(g);
-        g->timer = 0;
     }
 }
 
@@ -715,7 +805,11 @@ float directionToAngle(int dx, int dy)
 }
 
 // 在第 (x, y) 格画一张图，可以旋转；flip = 1 时左右翻转；scale 是放大几倍。没有图片就画一个色块代替
-void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip, float scale, Color fallback)
+//   ★ x、y 改成 float：可以画在两格中间（例如 3.5），蛇才能平滑地滑过去
+//   ★ roll：图片“上下”压扁多少（1 = 正常，0 = 压成一条线，-1 = 上下翻过来）
+//     蛇头翻面时 roll 从 -1 慢慢变到 1，看起来像头在空中翻过去，而不是一瞬间换边
+void drawSpriteRoll(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale,
+                    float roll, Color fallback)
 {
     float cell = g->cell;
     float left = g->offsetX + x * cell;
@@ -723,29 +817,26 @@ void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip,
 
     if (texture.id == 0)       // 还没有图片：画色块
     {
-        DrawRectangle(left + 2, top + 2, cell - 4, cell - 4, fallback);
+        DrawRectangleRec((Rectangle){ left + 2, top + 2, cell - 4, cell - 4 }, fallback);
         return;
     }
 
     Rectangle source = { 0, 0, texture.width, texture.height };      // 整张图
     if (flip)
         source.width = -source.width;                                 // ★ 宽度变负的 = 左右翻转
+    if (roll < 0)
+        source.height = -source.height;                               // ★ 高度变负的 = 上下翻转
     float size = cell * scale;                                        // ★ 放大后的大小
-    Rectangle dest = { left + cell / 2, top + cell / 2, size, size }; // 画在格子中心
-    Vector2 origin = { size / 2, size / 2 };                          // 绕着中心旋转
+    float height = size * fabsf(roll);                                // ★ 压扁后的高度
+    Rectangle dest = { left + cell / 2, top + cell / 2, size, height }; // 画在格子中心
+    Vector2 origin = { size / 2, height / 2 };                        // 绕着中心旋转
     DrawTexturePro(texture, source, dest, origin, angle, WHITE);
 }
 
-// ★ 算出第 i 节往第 j 节（相邻的一节）是哪个方向，结果放进 *dx、*dy
-void neighborDir(Snake *s, int i, int j, int *dx, int *dy)
+// 一般的画图：不压扁
+void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale, Color fallback)
 {
-    *dx = s->x[j] - s->x[i];
-    *dy = s->y[j] - s->y[i];
-    // 无边界模式：两节隔着地图边缘（例如 0 和 width-1）时，换算回 1 或 -1
-    if (*dx > 1)  *dx = -1;
-    if (*dx < -1) *dx = 1;
-    if (*dy > 1)  *dy = -1;
-    if (*dy < -1) *dy = 1;
+    drawSpriteRoll(g, texture, x, y, angle, flip, scale, 1, fallback);
 }
 
 // ★ 转角要转几度。corner.png 画的是“接右边和下边”，转 90 度就变成“接下边和左边”，以此类推
@@ -763,7 +854,81 @@ float cornerAngle(int ax, int ay, int bx, int by)
     return 0;
 }
 
-// ★ 画蛇：每一节看前后两节在哪里，决定用直的还是转角，以及要转几度
+// ★ 把 0 ~ 1 的进度变成“慢 - 快 - 慢”，转头时看起来比较自然
+float smoothStep(float p)
+{
+    if (p < 0) p = 0;
+    if (p > 1) p = 1;
+    return p * p * (3 - 2 * p);
+}
+
+// ★ 从角度 a 慢慢转到角度 b（p 从 0 到 1），走比较近的那一边
+float turnAngle(float a, float b, float p)
+{
+    float diff = b - a;
+    while (diff > 180)  diff -= 360;
+    while (diff < -180) diff += 360;
+    return a + diff * smoothStep(p);
+}
+
+// ★ 头要转几度。头的图片是“侧面、往右看”，所以：
+//   往右 = 不翻转 0 度、往左 = 左右翻转 0 度；
+//   往上 / 往下 = 保持“最后一次横着走”的翻转，再转 90 度。
+//   这样转弯时只要慢慢转 90 度，不会突然翻面
+float headAngle(int dx, int dy, int flip)
+{
+    if (dy == 0)
+        return 0;
+    if (!flip)
+        return (dy == 1) ? 90 : -90;
+    return (dy == 1) ? -90 : 90;
+}
+
+// ★ 画一节身体：看它往头那边 (ax, ay) 和往尾巴那边 (bx, by) 的方向，决定用直的还是转角
+void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color color)
+{
+    Textures *t = &g->textures;
+    if (ax == -bx && ay == -by)           // 两个方向相反 → 直的
+    {
+        float angle = 0;                  // 横的
+        if (ax == 0)
+            angle = 90;                   // 直的（上下）
+        drawSprite(g, t->body, x, y, angle, 0, SNAKE_SCALE, color);
+    }
+    else                                  // 否则 → 转角
+    {
+        Texture2D piece = t->corner;
+        if (piece.id == 0)                // 还没画转角，先用直的代替
+            piece = t->body;
+        drawSprite(g, piece, x, y, cornerAngle(ax, ay, bx, by), 0, SNAKE_SCALE, color);
+    }
+}
+
+// ★ 画会滑动的那一节（头或尾巴）：从格子 (fromX, fromY) 往 (dx, dy) 方向滑了 p 格
+//   无边界模式穿过边缘时：两边各画一次，而且只画地图里面的部分，看起来就像从对面钻出来
+void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int dy, float p,
+                 float angle, int flip, float roll, Color color)
+{
+    float x = fromX + dx * p;
+    float y = fromY + dy * p;
+    int toX = fromX + dx;
+    int toY = fromY + dy;
+
+    if (toX >= 0 && toX < g->width && toY >= 0 && toY < g->height)   // 一般情况
+    {
+        drawSpriteRoll(g, texture, x, y, angle, flip, SNAKE_SCALE, roll, color);
+        return;
+    }
+
+    BeginScissorMode(g->offsetX, g->offsetY, g->width * g->cell, g->height * g->cell);
+    drawSpriteRoll(g, texture, x, y, angle, flip, SNAKE_SCALE, roll, color);                               // 正要出去的
+    drawSpriteRoll(g, texture, x - dx * g->width, y - dy * g->height, angle, flip, SNAKE_SCALE, roll, color); // 从对面进来的
+    EndScissorMode();
+}
+
+// ★ 画蛇（平滑版）
+//   格子里的身体不会动；只有“头”和“尾巴”会依照这一步走了多少，在两格之间滑过去。
+//   这样蛇看起来是连续地爬，而不是一格一格跳。
 void drawSnake(Game *g)
 {
     Snake *s = &g->snake;
@@ -774,48 +939,64 @@ void drawSnake(Game *g)
     if (g->speedTimer > 0)
         bodyColor = NEON_YELLOW;
 
+    // 这一步走了多少：0 = 刚走完上一步，1 = 马上要走下一步
+    float p = g->timer / getMoveTime(g);
+    if (p > 1 || g->state != PLAYING)     // 游戏结束就停在格子正中间
+        p = 1;
+
     // ★ 蛇的图片比格子大，会互相重叠，所以从尾巴画到头：越靠近头的越晚画、盖在上面
 
-    // 1. 尾巴：朝向“前一节”的方向（tail.png 画成接右边、尖端朝左）
+    // 1. 尾巴正要进去的那一格，先垫一节身体（不然尾巴和身体中间会有缝）
     int last = s->length - 1;
-    int dx, dy;
-    neighborDir(s, last, last - 1, &dx, &dy);
-    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), 0, SNAKE_SCALE, NEON_PURPLE);
-
-    // 2. 身体：从倒数第 2 节画到第 1 节
-    for (int i = s->length - 2; i >= 1; i--)
+    int tailMoving = (s->prevTailX != s->x[last] || s->prevTailY != s->y[last]);
+    if (tailMoving)
     {
-        int ax, ay, bx, by;
-        neighborDir(s, i, i - 1, &ax, &ay);   // 往头那边的方向
-        neighborDir(s, i, i + 1, &bx, &by);   // 往尾巴那边的方向
-
-        if (ax == -bx && ay == -by)           // 两个方向相反 → 直的
-        {
-            float angle = 0;                  // 横的
-            if (ax == 0)
-                angle = 90;                   // 直的（上下）
-            drawSprite(g, t->body, s->x[i], s->y[i], angle, 0, SNAKE_SCALE, bodyColor);
-        }
-        else                                  // 否则 → 转角
-        {
-            Texture2D piece = t->corner;
-            if (piece.id == 0)                // 还没画转角，先用直的代替
-                piece = t->body;
-            drawSprite(g, piece, s->x[i], s->y[i], cornerAngle(ax, ay, bx, by), 0, SNAKE_SCALE, bodyColor);
-        }
+        int ax, ay;
+        segmentDir(g, last, last - 1, &ax, &ay);
+        drawBodyPiece(g, s->x[last], s->y[last], ax, ay, -s->tailDirX, -s->tailDirY, bodyColor);
     }
 
-    // 3. 头：最后画才会盖在最上面
-    //   往左走时用“左右翻转”而不是转 180 度，侧面的头才不会上下颠倒
-    if (s->dirX == -1)
-        drawSprite(g, t->head, s->x[0], s->y[0], 0, 1, SNAKE_SCALE, NEON_PINK);
-    else
-        drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), 0, SNAKE_SCALE, NEON_PINK);
+    // 2. 尾巴：从上一格滑过来；转弯时慢慢转过去（前半步转完）
+    float tailAngle = turnAngle(directionToAngle(s->oldTailDirX, s->oldTailDirY),
+                                directionToAngle(s->tailDirX, s->tailDirY), p * 2);
+    if (tailMoving)
+        drawSliding(g, t->tail, s->prevTailX, s->prevTailY, s->tailDirX, s->tailDirY, p,
+                    tailAngle, 0, 1, NEON_PURPLE);
+    else    // 刚吃到食物：尾巴这一步不动
+        drawSprite(g, t->tail, s->x[last], s->y[last], tailAngle, 0, SNAKE_SCALE, NEON_PURPLE);
+
+    // 3. 身体：从倒数第 2 节画到第 1 节（都在格子正中间，不会动）
+    for (int i = last - 1; i >= 1; i--)
+    {
+        int ax, ay, bx, by;
+        segmentDir(g, i, i - 1, &ax, &ay);   // 往头那边的方向
+        segmentDir(g, i, i + 1, &bx, &by);   // 往尾巴那边的方向
+        drawBodyPiece(g, s->x[i], s->y[i], ax, ay, bx, by, bodyColor);
+    }
+
+    // 4. 头：从第 1 节的位置滑向第 0 节；转弯时慢慢转过去。最后画才会盖在最上面
+    //    方向看的是“真的走的方向”，不是刚按的键，所以按键的瞬间头不会先转过去
+    int dx, dy, oldDx, oldDy;
+    segmentDir(g, 1, 0, &dx, &dy);           // 这一步的方向
+    segmentDir(g, 2, 1, &oldDx, &oldDy);     // 上一步的方向
+    float angle = turnAngle(headAngle(oldDx, oldDy, s->headFlip), headAngle(dx, dy, s->headFlip), p * 2);
+    // ★ 这一步头翻面了（例如往上走再按 A）：前半步慢慢翻过去，不会一瞬间换边
+    float roll = 1;
+    if (s->headRolling)
+    {
+        roll = -1 + 2 * smoothStep(p * 2);
+        if (roll > -0.35f && roll < 0.35f)   // 不要压到完全看不见
+            roll = (roll < 0) ? -0.35f : 0.35f;
+    }
+    drawSliding(g, t->head, s->x[1], s->y[1], dx, dy, p, angle, s->headFlip, roll, NEON_PINK);
 
     // 加速中：蛇头外面加一圈黄色的光
     if (g->speedTimer > 0)
-        DrawRectangleLines(g->offsetX + s->x[0] * g->cell, g->offsetY + s->y[0] * g->cell,
-                           g->cell, g->cell, NEON_YELLOW);
+    {
+        Rectangle box = { g->offsetX + (s->x[1] + dx * p) * g->cell,
+                          g->offsetY + (s->y[1] + dy * p) * g->cell, g->cell, g->cell };
+        DrawRectangleLinesEx(box, 1, NEON_YELLOW);
+    }
 }
 
 // ★ 用代码画一块金属钢板（一格）：底色 + 左上亮边 + 右下暗边 + 四角螺丝钉
