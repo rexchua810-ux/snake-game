@@ -61,6 +61,15 @@ typedef struct {
     int dirX, dirY;  // 移动方向
 } Snake;
 
+// ★ 所有音效
+typedef struct {
+    Sound eat;       // 吃到食物
+    Sound booster;   // 吃到道具
+    Sound crash;     // 撞到东西
+    Sound levelUp;   // 升级
+    Sound win;       // 赢了
+} Sounds;
+
 // 整个游戏的资料都放在这里
 typedef struct {
     int **map;           // 地图（malloc 来的二维数组），还没开始时是 NULL
@@ -77,7 +86,8 @@ typedef struct {
     char message[32];    // ★ 改成字符数组：把文字复制进来存着
     float messageTimer;
     int level;           // ★ 现在第几关
-    int paused;          // ★ 1 = 暂停中
+    int paused;          // 1 = 暂停中
+    Sounds sounds;       // ★ 音效
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
 } Game;
@@ -156,6 +166,60 @@ void placeItem(Game *g, int type)
             }
         }
     }
+}
+
+// ================= 音效 =================
+
+// ★ 用程序“算”出一个音效：频率从 startFreq 慢慢变到 endFreq，长度 duration 秒
+//   频率 = 每秒震动几次，越高声音越尖
+Sound makeSound(float startFreq, float endFreq, float duration)
+{
+    int sampleRate = 44100;                      // 每秒 44100 个点（CD 音质）
+    int count = (int)(sampleRate * duration);    // 总共要几个点
+    short *samples = malloc(count * sizeof(short));
+
+    float phase = 0;                             // 现在在一次震动的哪个位置（0 ~ 1）
+    for (int i = 0; i < count; i++)
+    {
+        float progress = (float)i / count;       // 进度 0 → 1
+        float freq = startFreq + (endFreq - startFreq) * progress;
+        phase += freq / sampleRate;
+        if (phase >= 1)
+            phase -= 1;
+
+        float volume = 0.3f * (1 - progress);    // 越后面越小声（淡出）
+
+        // 方波：前半次震动往上推、后半次往下拉，听起来像复古游戏机
+        if (phase < 0.5f)
+            samples[i] = (short)(volume * 32767);
+        else
+            samples[i] = (short)(-volume * 32767);
+    }
+
+    Wave wave = { count, sampleRate, 16, 1, samples };  // 点数、每秒几点、16 位、单声道、资料
+    Sound sound = LoadSoundFromWave(wave);              // Raylib 会复制一份
+    free(samples);                                      // 所以自己这份可以释放了
+    return sound;
+}
+
+// ★ 一次做好所有音效
+void loadSounds(Sounds *s)
+{
+    s->eat     = makeSound(600, 900, 0.08f);   // 短短的“哔”往上
+    s->booster = makeSound(400, 1200, 0.25f);  // 往上滑
+    s->crash   = makeSound(300, 60, 0.4f);     // 往下掉
+    s->levelUp = makeSound(500, 1000, 0.35f);
+    s->win     = makeSound(400, 1600, 0.8f);
+}
+
+// ★ 释放所有音效
+void unloadSounds(Sounds *s)
+{
+    UnloadSound(s->eat);
+    UnloadSound(s->booster);
+    UnloadSound(s->crash);
+    UnloadSound(s->levelUp);
+    UnloadSound(s->win);
 }
 
 // ================= 游戏的开始与结束 =================
@@ -361,6 +425,7 @@ void applyBooster(Game *g)
 // 撞到东西：扣一条命。还有命就回到起点继续，没命了才输
 void loseLife(Game *g)
 {
+    PlaySound(g->sounds.crash);    // ★
     g->lives--;
     if (g->lives <= 0)
     {
@@ -378,6 +443,7 @@ void loseLife(Game *g)
 void levelUp(Game *g)
 {
     g->level++;
+    PlaySound(g->sounds.levelUp);  // ★
     for (int i = 0; i < LEVEL_OBSTACLES; i++)
         placeItem(g, OBSTACLE);
 
@@ -447,6 +513,7 @@ void stepGame(Game *g)
     {
         s->length++;
         g->score++;
+        PlaySound(g->sounds.eat);  // ★
         g->map[newY][newX] = EMPTY;
     }
 
@@ -465,6 +532,7 @@ void stepGame(Game *g)
         if (g->score >= WIN_SCORE)
         {
             g->state = WIN;
+            PlaySound(g->sounds.win);   // ★
         }
         else
         {
@@ -478,6 +546,7 @@ void stepGame(Game *g)
     if (gotBooster)
     {
         g->map[newY][newX] = EMPTY;
+        PlaySound(g->sounds.booster);   // ★
         applyBooster(g);
         placeItem(g, BOOSTER);
     }
@@ -705,18 +774,23 @@ int main(void)
     Game game;
     initGame(&game);
 
-    openWindow();                                              // ★
-    RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // ★ 600x660 的画布
-    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // ★ 缩放时比较平滑
+    openWindow();
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // 600x660 的画布
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // 缩放时比较平滑
+
+    InitAudioDevice();                // ★ 打开声音
+    loadSounds(&game.sounds);         // ★ 做好音效
 
     int quit = 0;
     while (!WindowShouldClose() && !quit)
     {
         quit = updateGame(&game);
-        drawGame(&game, canvas);                               // ★
+        drawGame(&game, canvas);
     }
 
-    UnloadRenderTexture(canvas);                               // ★ 释放画布
+    unloadSounds(&game.sounds);       // ★ 释放音效
+    CloseAudioDevice();               // ★ 关闭声音
+    UnloadRenderTexture(canvas);      // 释放画布
     CloseWindow();
     freeGame(&game);
     return 0;
