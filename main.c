@@ -20,6 +20,7 @@
 #define START_LIVES   1     // 一开始有几条命
 #define MESSAGE_TIME  1.5f  // 提示文字显示几秒
 #define SNAKE_SCALE   1.5f  // ★ 蛇的图片画成格子的几倍大（越大蛇越粗）
+#define HEAD_SCALE    1.25f // ★ 蛇头画成格子的几倍大（头比较宽，所以小一点才不会像一颗球）
 
 // ★ 关卡
 #define FOODS_PER_LEVEL 5      // 每吃 5 个食物升一级
@@ -107,6 +108,7 @@ typedef struct {
     Texture2D booster;   // 道具
     Texture2D obstacle;  // 障碍物
     Texture2D floor;     // ★ 地板（可以不画，没有的话程序会自己画金属钢板）
+    Texture2D cover;     // ★ 开始画面的封面（600x660，中间的面板留空，文字由程序画上去）
 } Textures;
 
 // 整个游戏的资料都放在这里
@@ -750,6 +752,7 @@ void loadTextures(Textures *t)
     t->booster  = loadImage("assets/booster.png");
     t->obstacle = loadImage("assets/obstacle.png");
     t->floor    = loadImage("assets/floor.png");
+    t->cover    = loadImage("assets/cover.png");
 }
 
 // ★ 释放所有图片（id 是 0 表示没读到，不用释放）
@@ -763,6 +766,7 @@ void unloadTextures(Textures *t)
     if (t->booster.id > 0)  UnloadTexture(t->booster);
     if (t->obstacle.id > 0) UnloadTexture(t->obstacle);
     if (t->floor.id > 0)    UnloadTexture(t->floor);
+    if (t->cover.id > 0)    UnloadTexture(t->cover);
 }
 
 // ================= 画面 =================
@@ -882,7 +886,7 @@ void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color 
 // ★ 画会滑动的那一节（头或尾巴）：从格子 (fromX, fromY) 往 (dx, dy) 方向滑了 p 格
 //   无边界模式穿过边缘时：两边各画一次，而且只画地图里面的部分，看起来就像从对面钻出来
 void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int dy, float p,
-                 float angle, Color color)
+                 float angle, float scale, Color color)
 {
     float x = fromX + dx * p;
     float y = fromY + dy * p;
@@ -891,13 +895,13 @@ void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int d
 
     if (toX >= 0 && toX < g->width && toY >= 0 && toY < g->height)   // 一般情况
     {
-        drawSprite(g, texture, x, y, angle, 0, SNAKE_SCALE, color);
+        drawSprite(g, texture, x, y, angle, 0, scale, color);
         return;
     }
 
     BeginScissorMode(g->offsetX, g->offsetY, g->width * g->cell, g->height * g->cell);
-    drawSprite(g, texture, x, y, angle, 0, SNAKE_SCALE, color);                               // 正要出去的
-    drawSprite(g, texture, x - dx * g->width, y - dy * g->height, angle, 0, SNAKE_SCALE, color); // 从对面进来的
+    drawSprite(g, texture, x, y, angle, 0, scale, color);                               // 正要出去的
+    drawSprite(g, texture, x - dx * g->width, y - dy * g->height, angle, 0, scale, color); // 从对面进来的
     EndScissorMode();
 }
 
@@ -936,7 +940,7 @@ void drawSnake(Game *g)
                                 directionToAngle(s->tailDirX, s->tailDirY), p * 2);
     if (tailMoving)
         drawSliding(g, t->tail, s->prevTailX, s->prevTailY, s->tailDirX, s->tailDirY, p,
-                    tailAngle, NEON_PURPLE);
+                    tailAngle, SNAKE_SCALE, NEON_PURPLE);
     else    // 刚吃到食物：尾巴这一步不动
         drawSprite(g, t->tail, s->x[last], s->y[last], tailAngle, 0, SNAKE_SCALE, NEON_PURPLE);
 
@@ -955,7 +959,7 @@ void drawSnake(Game *g)
     segmentDir(g, 1, 0, &dx, &dy);           // 这一步的方向
     segmentDir(g, 2, 1, &oldDx, &oldDy);     // 上一步的方向
     float angle = turnAngle(directionToAngle(oldDx, oldDy), directionToAngle(dx, dy), p * 2);
-    drawSliding(g, t->head, s->x[1], s->y[1], dx, dy, p, angle, NEON_PINK);
+    drawSliding(g, t->head, s->x[1], s->y[1], dx, dy, p, angle, HEAD_SCALE, NEON_PINK);
 
     // 加速中：蛇头外面加一圈黄色的光
     if (g->speedTimer > 0)
@@ -1012,11 +1016,9 @@ void drawEnergyGrid(Game *g)
     }
 }
 
-// 画开始画面
-void drawMenu(Game *g)
+// ★ 开始画面上的三个选项（宽、高、模式）：选到的那一项发光，其他的暗暗的
+void drawMenuRows(Game *g, int firstY, int gap, int size)
 {
-    drawNeonText("NEON SNAKE", 80, 60, NEON_PINK);
-
     const char *modeName = "Classic";
     if (g->mode == NO_WALLS)
         modeName = "No Walls";
@@ -1029,16 +1031,41 @@ void drawMenu(Game *g)
     for (int i = 0; i < 3; i++)
     {
         if (i == g->menuSelected)
-            drawNeonText(rows[i], 230 + i * 60, 30, NEON_CYAN);   // 选到的那一项发光
+            drawNeonText(rows[i], firstY + i * gap, size, NEON_CYAN);   // 选到的那一项发光
         else
-            drawCenterText(rows[i], 230 + i * 60, 30, DIM_TEXT);
+            drawCenterText(rows[i], firstY + i * gap, size, DIM_TEXT);
+    }
+}
+
+// ★ 模式说明
+const char *modeHint(Game *g)
+{
+    if (g->mode == CLASSIC)
+        return "Hit the wall = lose a life";
+    return "Go through walls to the other side";
+}
+
+// 画开始画面
+void drawMenu(Game *g)
+{
+    // ★ 有封面图：标题和下面的按键说明都已经画在图上了，只要把会变的文字写进中间的面板
+    if (g->textures.cover.id > 0)
+    {
+        Texture2D cover = g->textures.cover;
+        Rectangle source = { 0, 0, cover.width, cover.height };
+        Rectangle dest = { 0, 0, SCREEN_W, SCREEN_H };            // 铺满整个画面
+        DrawTexturePro(cover, source, dest, (Vector2){ 0, 0 }, 0, WHITE);
+
+        drawMenuRows(g, 252, 38, 24);
+        drawCenterText(modeHint(g), 398, 16, NEON_PURPLE);
+        drawCenterText(g->menuError, 428, 16, NEON_RED);
+        return;
     }
 
-    if (g->mode == CLASSIC)
-        drawCenterText("Hit the wall = lose a life", 420, 20, NEON_PURPLE);
-    else
-        drawCenterText("Go through walls to the other side", 420, 20, NEON_PURPLE);
-
+    // 没有封面图：用程序画
+    drawNeonText("NEON SNAKE", 80, 60, NEON_PINK);
+    drawMenuRows(g, 230, 60, 30);
+    drawCenterText(modeHint(g), 420, 20, NEON_PURPLE);
     drawCenterText(g->menuError, 470, 20, NEON_RED);
 
     drawCenterText(TextFormat("Map size: %d - %d", MIN_SIZE, MAX_SIZE), 540, 20, DIM_TEXT);
