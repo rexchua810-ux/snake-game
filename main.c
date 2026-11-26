@@ -32,6 +32,17 @@
 #define DEFAULT_W    15
 #define DEFAULT_H    12
 
+// ===== ★ 赛博朋克配色 =====
+#define BG_COLOR     (Color){ 12, 6, 28, 255 }     // 深紫黑背景
+#define GRID_COLOR   (Color){ 40, 18, 70, 255 }    // 暗紫格线
+#define NEON_PINK    (Color){ 255, 45, 200, 255 }
+#define NEON_CYAN    (Color){ 0, 240, 255, 255 }
+#define NEON_PURPLE  (Color){ 170, 80, 255, 255 }
+#define NEON_YELLOW  (Color){ 255, 230, 0, 255 }
+#define NEON_RED     (Color){ 255, 50, 80, 255 }
+#define NEON_ORANGE  (Color){ 255, 140, 0, 255 }
+#define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
+
 // 地图格子里的东西
 #define EMPTY    0
 #define FOOD     1
@@ -70,6 +81,16 @@ typedef struct {
     Sound win;       // 赢了
 } Sounds;
 
+// ★ 所有图片（你画的像素图）
+typedef struct {
+    Texture2D head;      // 蛇头（画成往右看）
+    Texture2D body;      // 蛇身
+    Texture2D tail;      // 蛇尾（画成往右走：尖端在左边）
+    Texture2D apple;     // 苹果
+    Texture2D booster;   // 道具
+    Texture2D obstacle;  // 障碍物
+} Textures;
+
 // 整个游戏的资料都放在这里
 typedef struct {
     int **map;           // 地图（malloc 来的二维数组），还没开始时是 NULL
@@ -87,7 +108,8 @@ typedef struct {
     float messageTimer;
     int level;           // ★ 现在第几关
     int paused;          // 1 = 暂停中
-    Sounds sounds;       // ★ 音效
+    Sounds sounds;       // 音效
+    Textures textures;   // ★ 图片
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
 } Game;
@@ -603,13 +625,43 @@ int updateGame(Game *g)
     return 0;
 }
 
-// ================= 画面 =================
+// ================= 图片 =================
 
-// 画一格（会加上地图的位置偏移）
-void drawCell(Game *g, int x, int y, Color color)
+// ★ 读一张图片；文件不存在也没关系，画的时候会用色块代替
+Texture2D loadImage(const char *path)
 {
-    DrawRectangle(g->offsetX + x * g->cell, g->offsetY + y * g->cell, g->cell, g->cell, color);
+    Texture2D texture = { 0 };
+    if (FileExists(path))
+    {
+        texture = LoadTexture(path);
+        SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // 像素图放大时保持锐利，不会糊掉
+    }
+    return texture;
 }
+
+// ★ 读进所有图片（都放在 assets 文件夹）
+void loadTextures(Textures *t)
+{
+    t->head     = loadImage("assets/head.png");
+    t->body     = loadImage("assets/body.png");
+    t->tail     = loadImage("assets/tail.png");
+    t->apple    = loadImage("assets/apple.png");
+    t->booster  = loadImage("assets/booster.png");
+    t->obstacle = loadImage("assets/obstacle.png");
+}
+
+// ★ 释放所有图片（id 是 0 表示没读到，不用释放）
+void unloadTextures(Textures *t)
+{
+    if (t->head.id > 0)     UnloadTexture(t->head);
+    if (t->body.id > 0)     UnloadTexture(t->body);
+    if (t->tail.id > 0)     UnloadTexture(t->tail);
+    if (t->apple.id > 0)    UnloadTexture(t->apple);
+    if (t->booster.id > 0)  UnloadTexture(t->booster);
+    if (t->obstacle.id > 0) UnloadTexture(t->obstacle);
+}
+
+// ================= 画面 =================
 
 // 在画面左右置中的位置写字
 void drawCenterText(const char *text, int y, int size, Color color)
@@ -618,10 +670,83 @@ void drawCenterText(const char *text, int y, int size, Color color)
     DrawText(text, (SCREEN_W - textWidth) / 2, y, size, color);
 }
 
-// ★ 画开始画面
+// ★ 发光的字：先在旁边画几层半透明的字当作“光”，再画本体
+void drawNeonText(const char *text, int y, int size, Color color)
+{
+    int textWidth = MeasureText(text, size);
+    int x = (SCREEN_W - textWidth) / 2;
+    DrawText(text, x - 2, y, size, Fade(color, 0.3f));
+    DrawText(text, x + 2, y, size, Fade(color, 0.3f));
+    DrawText(text, x, y - 2, size, Fade(color, 0.3f));
+    DrawText(text, x, y + 2, size, Fade(color, 0.3f));
+    DrawText(text, x, y, size, color);
+}
+
+// ★ 方向 → 旋转角度（图片都画成往右，其他方向就转过去）
+//   往右 0 度、往下 90 度、往左 180 度、往上 270 度（画面的 y 是往下变大，所以顺时针）
+float directionToAngle(int dx, int dy)
+{
+    if (dx == 1)  return 0;
+    if (dy == 1)  return 90;
+    if (dx == -1) return 180;
+    return 270;
+}
+
+// ★ 在第 (x, y) 格画一张图，可以旋转。没有图片就画一个色块代替
+void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, Color fallback)
+{
+    float cell = g->cell;
+    float left = g->offsetX + x * cell;
+    float top  = g->offsetY + y * cell;
+
+    if (texture.id == 0)       // 还没有图片：画色块
+    {
+        DrawRectangle(left + 2, top + 2, cell - 4, cell - 4, fallback);
+        return;
+    }
+
+    Rectangle source = { 0, 0, texture.width, texture.height };      // 整张图
+    Rectangle dest = { left + cell / 2, top + cell / 2, cell, cell }; // 画在格子中心
+    Vector2 origin = { cell / 2, cell / 2 };                          // 绕着中心旋转
+    DrawTexturePro(texture, source, dest, origin, angle, WHITE);
+}
+
+// ★ 画蛇：头、身体、尾巴分开画
+void drawSnake(Game *g)
+{
+    Snake *s = &g->snake;
+    Textures *t = &g->textures;
+
+    // 身体（加速中没有图片时用黄色）
+    Color bodyColor = NEON_CYAN;
+    if (g->speedTimer > 0)
+        bodyColor = NEON_YELLOW;
+    for (int i = 1; i < s->length - 1; i++)
+        drawSprite(g, t->body, s->x[i], s->y[i], 0, bodyColor);
+
+    // 尾巴：朝向“前一节”的方向
+    int last = s->length - 1;
+    int dx = s->x[last - 1] - s->x[last];
+    int dy = s->y[last - 1] - s->y[last];
+    if (dx > 1)  dx = -1;      // 无边界模式：两节隔着地图边缘时换算回 1 或 -1
+    if (dx < -1) dx = 1;
+    if (dy > 1)  dy = -1;
+    if (dy < -1) dy = 1;
+    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), NEON_PURPLE);
+
+    // 头：朝目前移动的方向，最后画才会盖在最上面
+    drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), NEON_PINK);
+
+    // ★ 加速中：蛇头外面加一圈黄色的光
+    if (g->speedTimer > 0)
+        DrawRectangleLines(g->offsetX + s->x[0] * g->cell, g->offsetY + s->y[0] * g->cell,
+                           g->cell, g->cell, NEON_YELLOW);
+}
+
+// 画开始画面
 void drawMenu(Game *g)
 {
-    drawCenterText("SNAKE", 80, 60, LIME);
+    drawNeonText("NEON SNAKE", 80, 60, NEON_PINK);
 
     const char *modeName = "Classic";
     if (g->mode == NO_WALLS)
@@ -634,77 +759,73 @@ void drawMenu(Game *g)
 
     for (int i = 0; i < 3; i++)
     {
-        Color color = GRAY;
         if (i == g->menuSelected)
-            color = YELLOW;              // 选到的那一项变黄色
-        drawCenterText(rows[i], 230 + i * 60, 30, color);
+            drawNeonText(rows[i], 230 + i * 60, 30, NEON_CYAN);   // 选到的那一项发光
+        else
+            drawCenterText(rows[i], 230 + i * 60, 30, DIM_TEXT);
     }
 
     if (g->mode == CLASSIC)
-        drawCenterText("Hit the wall = lose a life", 420, 20, LIGHTGRAY);
+        drawCenterText("Hit the wall = lose a life", 420, 20, NEON_PURPLE);
     else
-        drawCenterText("Go through walls to the other side", 420, 20, LIGHTGRAY);
+        drawCenterText("Go through walls to the other side", 420, 20, NEON_PURPLE);
 
-    drawCenterText(g->menuError, 470, 20, RED);
+    drawCenterText(g->menuError, 470, 20, NEON_RED);
 
-    drawCenterText(TextFormat("Map size: %d - %d", MIN_SIZE, MAX_SIZE), 540, 20, DARKGRAY);
-    drawCenterText("UP/DOWN: select   LEFT/RIGHT or 0-9: change", 570, 20, DARKGRAY);
-    drawCenterText("ENTER: start", 600, 20, WHITE);
+    drawCenterText(TextFormat("Map size: %d - %d", MIN_SIZE, MAX_SIZE), 540, 20, DIM_TEXT);
+    drawCenterText("UP/DOWN: select   LEFT/RIGHT or 0-9: change", 570, 20, DIM_TEXT);
+    drawNeonText("ENTER: start", 600, 20, NEON_YELLOW);
 }
 
 // 画游戏画面（地图、蛇、分数、提示、结束画面）
 void drawPlaying(Game *g)
 {
-    // 地图
+    Textures *t = &g->textures;
+
+    // 地图：格线 + 食物、障碍物、道具
     for (int y = 0; y < g->height; y++)
     {
         for (int x = 0; x < g->width; x++)
         {
-            if (g->map[y][x] == FOOD)
-                drawCell(g, x, y, RED);
-            else if (g->map[y][x] == OBSTACLE)
-                drawCell(g, x, y, GRAY);
-            else if (g->map[y][x] == BOOSTER)
-                drawCell(g, x, y, PURPLE);
             DrawRectangleLines(g->offsetX + x * g->cell, g->offsetY + y * g->cell,
-                               g->cell, g->cell, DARKGRAY);
+                               g->cell, g->cell, GRID_COLOR);
+            if (g->map[y][x] == FOOD)
+                drawSprite(g, t->apple, x, y, 0, NEON_RED);
+            else if (g->map[y][x] == OBSTACLE)
+                drawSprite(g, t->obstacle, x, y, 0, NEON_ORANGE);
+            else if (g->map[y][x] == BOOSTER)
+                drawSprite(g, t->booster, x, y, 0, NEON_PURPLE);
         }
     }
 
-    // ★ 地图外框：经典模式白色（墙），无边界模式蓝色（可以穿过）
-    Color border = WHITE;
+    // 地图外框：经典模式粉红色（墙），无边界模式蓝色（可以穿过）。外面再加一圈淡淡的光
+    Color border = NEON_PINK;
     if (g->mode == NO_WALLS)
-        border = SKYBLUE;
-    DrawRectangleLines(g->offsetX - 2, g->offsetY - 2,
-                       g->width * g->cell + 4, g->height * g->cell + 4, border);
+        border = NEON_CYAN;
+    Rectangle frame = { g->offsetX - 3, g->offsetY - 3, g->width * g->cell + 6, g->height * g->cell + 6 };
+    Rectangle glow  = { frame.x - 3, frame.y - 3, frame.width + 6, frame.height + 6 };
+    DrawRectangleLinesEx(glow, 3, Fade(border, 0.3f));
+    DrawRectangleLinesEx(frame, 2, border);
 
-    // 蛇：头亮绿色，身体绿色，加速中身体变黄色
-    for (int i = 0; i < g->snake.length; i++)
-    {
-        if (i == 0)
-            drawCell(g, g->snake.x[i], g->snake.y[i], LIME);
-        else if (g->speedTimer > 0)
-            drawCell(g, g->snake.x[i], g->snake.y[i], YELLOW);
-        else
-            drawCell(g, g->snake.x[i], g->snake.y[i], GREEN);
-    }
+    drawSnake(g);
 
-    // 上方显示分数和生命
-    DrawText(TextFormat("Score: %d / %d   Lives: %d   Level: %d",
-                        g->score, WIN_SCORE, g->lives, g->level),
-             10, 20, 20, WHITE);
-    DrawText("P: Pause", SCREEN_W - 100, 20, 20, DARKGRAY);
+    // 上方显示分数、生命、关卡，下面一条霓虹线
+    DrawText(TextFormat("Score: %d / %d", g->score, WIN_SCORE), 10, 20, 20, NEON_CYAN);
+    DrawText(TextFormat("Lives: %d", g->lives), 200, 20, 20, NEON_PINK);
+    DrawText(TextFormat("Level: %d", g->level), 320, 20, 20, NEON_YELLOW);
+    DrawText("P: Pause", SCREEN_W - 100, 20, 20, DIM_TEXT);
+    DrawLine(0, HUD_H - 1, SCREEN_W, HUD_H - 1, Fade(NEON_PINK, 0.5f));
 
     // 提示文字
     if (g->messageTimer > 0)
-        drawCenterText(g->message, HUD_H + 20, 30, YELLOW);
+        drawNeonText(g->message, HUD_H + 20, 30, NEON_YELLOW);
 
-    // ★ 暂停画面
+    // 暂停画面
     if (g->paused)
     {
         DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
-        drawCenterText("Paused", SCREEN_H / 2 - 40, 40, WHITE);
-        drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, LIGHTGRAY);
+        drawNeonText("PAUSED", SCREEN_H / 2 - 40, 40, NEON_CYAN);
+        drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, DIM_TEXT);
     }
 
     // 结束画面
@@ -713,9 +834,9 @@ void drawPlaying(Game *g)
         DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
         int midY = SCREEN_H / 2;
         if (g->state == WIN)
-            drawCenterText("You Win!", midY - 40, 40, GOLD);
+            drawNeonText("YOU WIN!", midY - 40, 40, NEON_YELLOW);
         else
-            drawCenterText("Game Over", midY - 40, 40, RED);
+            drawNeonText("GAME OVER", midY - 40, 40, NEON_RED);
         drawCenterText("R: Restart   M: Menu   Q: Quit", midY + 20, 20, WHITE);
     }
 }
@@ -725,7 +846,7 @@ void drawGame(Game *g, RenderTexture2D canvas)
 {
     // 1. 画在画布上（所有座标都照 600x660 来算，不用管窗口多大）
     BeginTextureMode(canvas);
-    ClearBackground(BLACK);
+    ClearBackground(BG_COLOR);      // ★ 深紫黑背景
     if (g->state == MENU)
         drawMenu(g);
     else
@@ -756,7 +877,7 @@ void drawGame(Game *g, RenderTexture2D canvas)
 void openWindow(void)
 {
     SetConfigFlags(FLAG_WINDOW_RESIZABLE);   // 允许拉大缩小
-    InitWindow(SCREEN_W, SCREEN_H, "Snake");
+    InitWindow(SCREEN_W, SCREEN_H, "Neon Snake");
     SetWindowMinSize(SCREEN_W / 2, SCREEN_H / 2);
 
     // 如果屏幕不够高，就把窗口缩小到放得下（留一点空间给 Dock 和标题栏）
@@ -779,7 +900,8 @@ int main(void)
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // 缩放时比较平滑
 
     InitAudioDevice();                // ★ 打开声音
-    loadSounds(&game.sounds);         // ★ 做好音效
+    loadSounds(&game.sounds);         // 做好音效
+    loadTextures(&game.textures);     // ★ 读进图片
 
     int quit = 0;
     while (!WindowShouldClose() && !quit)
@@ -788,7 +910,8 @@ int main(void)
         drawGame(&game, canvas);
     }
 
-    unloadSounds(&game.sounds);       // ★ 释放音效
+    unloadTextures(&game.textures);   // ★ 释放图片
+    unloadSounds(&game.sounds);       // 释放音效
     CloseAudioDevice();               // ★ 关闭声音
     UnloadRenderTexture(canvas);      // 释放画布
     CloseWindow();
