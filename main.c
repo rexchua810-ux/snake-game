@@ -19,6 +19,7 @@
 #define MIN_LENGTH    3     // 蛇最短几节
 #define START_LIVES   1     // 一开始有几条命
 #define MESSAGE_TIME  1.5f  // 提示文字显示几秒
+#define SNAKE_SCALE   1.5f  // ★ 蛇的图片画成格子的几倍大（越大蛇越粗）
 
 // ★ 关卡
 #define FOODS_PER_LEVEL 5      // 每吃 5 个食物升一级
@@ -713,8 +714,8 @@ float directionToAngle(int dx, int dy)
     return 270;
 }
 
-// 在第 (x, y) 格画一张图，可以旋转；flip = 1 时左右翻转。没有图片就画一个色块代替
-void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip, Color fallback)
+// 在第 (x, y) 格画一张图，可以旋转；flip = 1 时左右翻转；scale 是放大几倍。没有图片就画一个色块代替
+void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip, float scale, Color fallback)
 {
     float cell = g->cell;
     float left = g->offsetX + x * cell;
@@ -729,8 +730,9 @@ void drawSprite(Game *g, Texture2D texture, int x, int y, float angle, int flip,
     Rectangle source = { 0, 0, texture.width, texture.height };      // 整张图
     if (flip)
         source.width = -source.width;                                 // ★ 宽度变负的 = 左右翻转
-    Rectangle dest = { left + cell / 2, top + cell / 2, cell, cell }; // 画在格子中心
-    Vector2 origin = { cell / 2, cell / 2 };                          // 绕着中心旋转
+    float size = cell * scale;                                        // ★ 放大后的大小
+    Rectangle dest = { left + cell / 2, top + cell / 2, size, size }; // 画在格子中心
+    Vector2 origin = { size / 2, size / 2 };                          // 绕着中心旋转
     DrawTexturePro(texture, source, dest, origin, angle, WHITE);
 }
 
@@ -772,8 +774,16 @@ void drawSnake(Game *g)
     if (g->speedTimer > 0)
         bodyColor = NEON_YELLOW;
 
-    // 身体（第 1 节到倒数第 2 节）
-    for (int i = 1; i < s->length - 1; i++)
+    // ★ 蛇的图片比格子大，会互相重叠，所以从尾巴画到头：越靠近头的越晚画、盖在上面
+
+    // 1. 尾巴：朝向“前一节”的方向（tail.png 画成接右边、尖端朝左）
+    int last = s->length - 1;
+    int dx, dy;
+    neighborDir(s, last, last - 1, &dx, &dy);
+    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), 0, SNAKE_SCALE, NEON_PURPLE);
+
+    // 2. 身体：从倒数第 2 节画到第 1 节
+    for (int i = s->length - 2; i >= 1; i--)
     {
         int ax, ay, bx, by;
         neighborDir(s, i, i - 1, &ax, &ay);   // 往头那边的方向
@@ -784,29 +794,23 @@ void drawSnake(Game *g)
             float angle = 0;                  // 横的
             if (ax == 0)
                 angle = 90;                   // 直的（上下）
-            drawSprite(g, t->body, s->x[i], s->y[i], angle, 0, bodyColor);
+            drawSprite(g, t->body, s->x[i], s->y[i], angle, 0, SNAKE_SCALE, bodyColor);
         }
         else                                  // 否则 → 转角
         {
             Texture2D piece = t->corner;
             if (piece.id == 0)                // 还没画转角，先用直的代替
                 piece = t->body;
-            drawSprite(g, piece, s->x[i], s->y[i], cornerAngle(ax, ay, bx, by), 0, bodyColor);
+            drawSprite(g, piece, s->x[i], s->y[i], cornerAngle(ax, ay, bx, by), 0, SNAKE_SCALE, bodyColor);
         }
     }
 
-    // 尾巴：朝向“前一节”的方向（tail.png 画成接右边、尖端朝左）
-    int last = s->length - 1;
-    int dx, dy;
-    neighborDir(s, last, last - 1, &dx, &dy);
-    drawSprite(g, t->tail, s->x[last], s->y[last], directionToAngle(dx, dy), 0, NEON_PURPLE);
-
-    // 头：最后画才会盖在最上面
+    // 3. 头：最后画才会盖在最上面
     //   往左走时用“左右翻转”而不是转 180 度，侧面的头才不会上下颠倒
     if (s->dirX == -1)
-        drawSprite(g, t->head, s->x[0], s->y[0], 0, 1, NEON_PINK);
+        drawSprite(g, t->head, s->x[0], s->y[0], 0, 1, SNAKE_SCALE, NEON_PINK);
     else
-        drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), 0, NEON_PINK);
+        drawSprite(g, t->head, s->x[0], s->y[0], directionToAngle(s->dirX, s->dirY), 0, SNAKE_SCALE, NEON_PINK);
 
     // 加速中：蛇头外面加一圈黄色的光
     if (g->speedTimer > 0)
@@ -905,7 +909,7 @@ void drawPlaying(Game *g)
         for (int x = 0; x < g->width; x++)
         {
             if (t->floor.id > 0)
-                drawSprite(g, t->floor, x, y, 0, 0, PLATE_COLOR);
+                drawSprite(g, t->floor, x, y, 0, 0, 1, PLATE_COLOR);
             else
                 drawMetalPlate(g, x, y);
         }
@@ -920,11 +924,11 @@ void drawPlaying(Game *g)
         for (int x = 0; x < g->width; x++)
         {
             if (g->map[y][x] == FOOD)
-                drawSprite(g, t->apple, x, y, 0, 0, NEON_RED);
+                drawSprite(g, t->apple, x, y, 0, 0, 1, NEON_RED);
             else if (g->map[y][x] == OBSTACLE)
-                drawSprite(g, t->obstacle, x, y, 0, 0, NEON_ORANGE);
+                drawSprite(g, t->obstacle, x, y, 0, 0, 1, NEON_ORANGE);
             else if (g->map[y][x] == BOOSTER)
-                drawSprite(g, t->booster, x, y, 0, 0, NEON_PURPLE);
+                drawSprite(g, t->booster, x, y, 0, 0, 1, NEON_PURPLE);
         }
     }
 
