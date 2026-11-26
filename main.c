@@ -1,3 +1,4 @@
+#include <stdio.h>    // snprintf
 #include <stdlib.h>
 #include <time.h>
 #include "raylib.h"
@@ -17,6 +18,13 @@
 #define MIN_LENGTH    3     // 蛇最短几节
 #define START_LIVES   1     // 一开始有几条命
 #define MESSAGE_TIME  1.5f  // 提示文字显示几秒
+
+// ★ 关卡
+#define FOODS_PER_LEVEL 5      // 每吃 5 个食物升一级
+#define LEVEL_SPEEDUP   0.015f // 每升一级，每步少等 0.015 秒（变快）
+#define MIN_MOVE_TIME   0.06f  // 最快不超过这个速度
+#define LEVEL_OBSTACLES 2      // 每升一级多 2 个障碍物
+#define SAFE_DISTANCE   4      // 新障碍物至少离蛇头这么远，避免突然出现在面前
 
 // ===== 地图大小的范围和默认值 =====
 #define MIN_SIZE     5
@@ -66,8 +74,10 @@ typedef struct {
     float timer;
     int lives;
     float speedTimer;
-    const char *message;
+    char message[32];    // ★ 改成字符数组：把文字复制进来存着
     float messageTimer;
+    int level;           // ★ 现在第几关
+    int paused;          // ★ 1 = 暂停中
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
 } Game;
@@ -100,30 +110,52 @@ int isOnSnake(Snake *s, int x, int y)
     return 0;
 }
 
-// 检查地图上还有没有可以放东西的空格（避免地图满了卡死）
-int hasFreeCell(Game *g)
+// ★ 检查 (x, y) 能不能放这种东西
+int isValidSpot(Game *g, int x, int y, int type)
 {
-    for (int y = 0; y < g->height; y++)
-        for (int x = 0; x < g->width; x++)
-            if (g->map[y][x] == EMPTY && !isOnSnake(&g->snake, x, y))
-                return 1;
-    return 0;
+    if (g->map[y][x] != EMPTY || isOnSnake(&g->snake, x, y))
+        return 0;
+    if (type == OBSTACLE)
+    {
+        if (y == g->height / 2)        // 障碍物不放在蛇出发的那一行
+            return 0;
+        int distance = abs(x - g->snake.x[0]) + abs(y - g->snake.y[0]);
+        if (distance < SAFE_DISTANCE)  // 障碍物不放在蛇头附近
+            return 0;
+    }
+    return 1;
 }
 
-// 在随机的空格上放一个东西
+// ★ 改过：先数有几个能放的格子，再从里面随机挑一个（不会因为找不到空格而卡住）
 void placeItem(Game *g, int type)
 {
-    if (!hasFreeCell(g))
+    // 第 1 轮：数一数有几个格子可以放
+    int count = 0;
+    for (int y = 0; y < g->height; y++)
+        for (int x = 0; x < g->width; x++)
+            if (isValidSpot(g, x, y, type))
+                count++;
+
+    if (count == 0)    // 一个都没有就不放
         return;
 
-    int x, y;
-    do {
-        x = rand() % g->width;
-        y = rand() % g->height;
-    } while (g->map[y][x] != EMPTY
-             || isOnSnake(&g->snake, x, y)
-             || (type == OBSTACLE && y == g->height / 2));  // 障碍物不放在蛇出发的那一行
-    g->map[y][x] = type;
+    // 第 2 轮：随机决定放在第几个可以放的格子
+    int target = rand() % count;
+    for (int y = 0; y < g->height; y++)
+    {
+        for (int x = 0; x < g->width; x++)
+        {
+            if (isValidSpot(g, x, y, type))
+            {
+                if (target == 0)
+                {
+                    g->map[y][x] = type;
+                    return;
+                }
+                target--;
+            }
+        }
+    }
 }
 
 // ================= 游戏的开始与结束 =================
@@ -131,7 +163,7 @@ void placeItem(Game *g, int type)
 // 显示一段提示文字（例如 "Speed Up!"）
 void showMessage(Game *g, const char *text)
 {
-    g->message = text;
+    snprintf(g->message, sizeof(g->message), "%s", text);  // 把文字复制到 message 里
     g->messageTimer = MESSAGE_TIME;
 }
 
@@ -162,8 +194,10 @@ void resetGame(Game *g)
     g->timer = 0;
     g->lives = START_LIVES;
     g->speedTimer = 0;
-    g->message = "";
+    g->message[0] = '\0';     // ★ 清空文字
     g->messageTimer = 0;
+    g->level = 1;             // ★
+    g->paused = 0;            // ★
 
     int obstacleCount = g->width * g->height / OBSTACLE_RATE;
     for (int i = 0; i < obstacleCount; i++)
@@ -340,6 +374,29 @@ void loseLife(Game *g)
     }
 }
 
+// ★ 升级：多放几个障碍物，显示 "Level 2!"
+void levelUp(Game *g)
+{
+    g->level++;
+    for (int i = 0; i < LEVEL_OBSTACLES; i++)
+        placeItem(g, OBSTACLE);
+
+    char text[32];
+    snprintf(text, sizeof(text), "Level %d!", g->level);
+    showMessage(g, text);
+}
+
+// ★ 依照关卡算出每一步要等多久（关卡越高越快）
+float getMoveTime(Game *g)
+{
+    float moveTime = MOVE_TIME - (g->level - 1) * LEVEL_SPEEDUP;
+    if (moveTime < MIN_MOVE_TIME)
+        moveTime = MIN_MOVE_TIME;
+    if (g->speedTimer > 0)      // 加速道具：再快一倍
+        moveTime = moveTime / 2;
+    return moveTime;
+}
+
 // ================= 游戏进行 =================
 
 // 蛇走一格：先检查会不会撞到，再看有没有吃到东西
@@ -406,9 +463,15 @@ void stepGame(Game *g)
     if (ate)
     {
         if (g->score >= WIN_SCORE)
+        {
             g->state = WIN;
+        }
         else
+        {
             placeItem(g, FOOD);
+            if (g->score % FOODS_PER_LEVEL == 0)   // ★ 每吃满 5 个就升级
+                levelUp(g);
+        }
     }
 
     // 7. 吃到道具
@@ -423,6 +486,12 @@ void stepGame(Game *g)
 // 游戏进行中每一帧要做的事
 void updatePlaying(Game *g)
 {
+    // ★ P：暂停 / 继续
+    if (IsKeyPressed(KEY_P))
+        g->paused = !g->paused;
+    if (g->paused)
+        return;          // 暂停中，后面都不做
+
     handleInput(g);
 
     float dt = GetFrameTime();
@@ -431,12 +500,8 @@ void updatePlaying(Game *g)
     if (g->messageTimer > 0)
         g->messageTimer -= dt;
 
-    float moveTime = MOVE_TIME;
-    if (g->speedTimer > 0)
-        moveTime = MOVE_TIME / 2;
-
     g->timer += dt;
-    if (g->timer >= moveTime)
+    if (g->timer >= getMoveTime(g))   // ★ 改用关卡算出来的速度
     {
         stepGame(g);
         g->timer = 0;
@@ -556,12 +621,22 @@ void drawPlaying(Game *g)
     }
 
     // 上方显示分数和生命
-    DrawText(TextFormat("Score: %d / %d   Lives: %d", g->score, WIN_SCORE, g->lives),
+    DrawText(TextFormat("Score: %d / %d   Lives: %d   Level: %d",
+                        g->score, WIN_SCORE, g->lives, g->level),
              10, 20, 20, WHITE);
+    DrawText("P: Pause", SCREEN_W - 100, 20, 20, DARKGRAY);
 
     // 提示文字
     if (g->messageTimer > 0)
         drawCenterText(g->message, HUD_H + 20, 30, YELLOW);
+
+    // ★ 暂停画面
+    if (g->paused)
+    {
+        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
+        drawCenterText("Paused", SCREEN_H / 2 - 40, 40, WHITE);
+        drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, LIGHTGRAY);
+    }
 
     // 结束画面
     if (g->state != PLAYING)
@@ -576,16 +651,51 @@ void drawPlaying(Game *g)
     }
 }
 
-// 画出整个画面
-void drawGame(Game *g)
+// ★ 画出整个画面：先画在固定 600x660 的“画布”上，再按窗口大小缩放贴到窗口里
+void drawGame(Game *g, RenderTexture2D canvas)
 {
-    BeginDrawing();
+    // 1. 画在画布上（所有座标都照 600x660 来算，不用管窗口多大）
+    BeginTextureMode(canvas);
     ClearBackground(BLACK);
     if (g->state == MENU)
         drawMenu(g);
     else
         drawPlaying(g);
+    EndTextureMode();
+
+    // 2. 算出缩放比例：宽、高各自能放大几倍，取小的那个，画面才不会变形或被切掉
+    float scaleX = (float)GetScreenWidth() / SCREEN_W;
+    float scaleY = (float)GetScreenHeight() / SCREEN_H;
+    float scale = scaleX;
+    if (scaleY < scale)
+        scale = scaleY;
+
+    // 3. 画布缩放后的大小和位置（放在窗口正中间）
+    float drawW = SCREEN_W * scale;
+    float drawH = SCREEN_H * scale;
+    Rectangle source = { 0, 0, SCREEN_W, -SCREEN_H };   // 高度是负的：画布存起来是上下颠倒的，要翻回来
+    Rectangle dest = { (GetScreenWidth() - drawW) / 2, (GetScreenHeight() - drawH) / 2, drawW, drawH };
+
+    // 4. 把画布贴到窗口上
+    BeginDrawing();
+    ClearBackground(BLACK);
+    DrawTexturePro(canvas.texture, source, dest, (Vector2){ 0, 0 }, 0, WHITE);
     EndDrawing();
+}
+
+// ★ 打开窗口：可以拉大缩小，而且一开始不会超出屏幕
+void openWindow(void)
+{
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE);   // 允许拉大缩小
+    InitWindow(SCREEN_W, SCREEN_H, "Snake");
+    SetWindowMinSize(SCREEN_W / 2, SCREEN_H / 2);
+
+    // 如果屏幕不够高，就把窗口缩小到放得下（留一点空间给 Dock 和标题栏）
+    int maxH = GetMonitorHeight(GetCurrentMonitor()) - 150;
+    if (SCREEN_H > maxH)
+        SetWindowSize(SCREEN_W * maxH / SCREEN_H, maxH);
+
+    SetTargetFPS(60);
 }
 
 int main(void)
@@ -595,16 +705,18 @@ int main(void)
     Game game;
     initGame(&game);
 
-    InitWindow(SCREEN_W, SCREEN_H, "Snake");
-    SetTargetFPS(60);
+    openWindow();                                              // ★
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // ★ 600x660 的画布
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // ★ 缩放时比较平滑
 
     int quit = 0;
     while (!WindowShouldClose() && !quit)
     {
         quit = updateGame(&game);
-        drawGame(&game);
+        drawGame(&game, canvas);                               // ★
     }
 
+    UnloadRenderTexture(canvas);                               // ★ 释放画布
     CloseWindow();
     freeGame(&game);
     return 0;
