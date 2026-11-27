@@ -45,6 +45,7 @@ void loadSounds(Sounds *s)
     s->crash   = makeSound(300, 60, 0.4f);     // 往下掉
     s->levelUp = makeSound(500, 1000, 0.35f);
     s->win     = makeSound(400, 1600, 0.8f);
+    s->golden  = makeSound(800, 1600, 0.2f);   // ★ 金苹果：比较高、比较亮
 }
 
 // ★ 释放所有音效
@@ -55,6 +56,7 @@ void unloadSounds(Sounds *s)
     UnloadSound(s->crash);
     UnloadSound(s->levelUp);
     UnloadSound(s->win);
+    UnloadSound(s->golden);
 }
 
 // ================= 图片 =================

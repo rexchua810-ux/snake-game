@@ -357,6 +357,8 @@ void drawPlaying(Game *g)
                 drawSprite(g, t->obstacle, x, y, 0, 0, 1, NEON_ORANGE);
             else if (g->map[y][x] == BOOSTER)
                 drawSprite(g, t->booster, x, y, 0, 0, 1, NEON_PURPLE);
+            else if (g->map[y][x] == GOLDEN)
+                drawGoldenApple(g, x, y);       // ★ 金苹果
         }
     }
 
@@ -450,6 +452,29 @@ void drawGame(Game *g, RenderTexture2D canvas)
     ClearBackground(BLACK);
     DrawTexturePro(canvas.texture, source, dest, (Vector2){ 0, 0 }, 0, WHITE);
     EndDrawing();
+}
+
+// ★ 金苹果：苹果后面有一圈会“呼吸”的金色光，旁边有转动的小星星；快消失时会闪烁
+void drawGoldenApple(Game *g, int x, int y)
+{
+    if (g->goldenTimer < 2 && (int)(g->goldenTimer * 8) % 2 == 0)   // 剩不到 2 秒：闪烁
+        return;
+
+    float cx = g->offsetX + (x + 0.5f) * g->cell;     // 格子中心（像素）
+    float cy = g->offsetY + (y + 0.5f) * g->cell;
+    float pulse = 0.5f + 0.5f * sinf(GetTime() * 6);  // 0 ~ 1 来回变化
+
+    DrawCircle(cx, cy, g->cell * (0.55f + 0.1f * pulse), Fade(GOLD_COLOR, 0.25f + 0.2f * pulse));
+    drawSprite(g, g->textures.apple, x, y, 0, 0, 1.1f, GOLD_COLOR);   // 苹果画大一点
+
+    // 两颗绕着苹果转的小星星（菱形）
+    float angle = GetTime() * 3;
+    for (int i = 0; i < 2; i++)
+    {
+        float a = angle + i * 3.14159f;
+        Vector2 star = { cx + cosf(a) * g->cell * 0.55f, cy + sinf(a) * g->cell * 0.55f };
+        DrawPoly(star, 4, g->cell * 0.1f, 45, GOLD_COLOR);
+    }
 }
 
 // ★ 打开窗口：可以拉大缩小，而且一开始不会超出屏幕

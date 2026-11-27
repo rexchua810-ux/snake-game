@@ -31,6 +31,11 @@
 #define MIN_MOVE_TIME   0.06f  // 最快不超过这个速度
 #define LEVEL_OBSTACLES 2      // 每升一级多 2 个障碍物
 
+// ★ 金苹果
+#define GOLDEN_CHANCE   4      // 每吃一个普通苹果，有 1/4 的机会出现金苹果
+#define GOLDEN_TIME     6.0f   // 金苹果几秒后消失
+#define GOLDEN_POINTS   3      // 金苹果值几分
+
 // ★ 手感特效
 #define INVINCIBLE_TIME 2.0f   // 复活后无敌几秒
 #define SHAKE_TIME      0.3f   // 撞到时画面震动几秒
@@ -65,12 +70,14 @@
 #define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // 钢板左上亮边
 #define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // 钢板右下暗边
 #define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // 螺丝钉
+#define GOLD_COLOR   (Color){ 255, 200, 40, 255 }  // ★ 金苹果的光
 
 // 地图格子里的东西
 #define EMPTY    0
 #define FOOD     1
 #define OBSTACLE 2
 #define BOOSTER  3
+#define GOLDEN   4          // ★ 金苹果
 
 // 游戏状态
 #define PLAYING 0
@@ -127,6 +134,7 @@ typedef struct {
     Sound crash;     // 撞到东西
     Sound levelUp;   // 升级
     Sound win;       // 赢了
+    Sound golden;    // ★ 吃到金苹果
 } Sounds;
 
 // ★ 所有图片（你画的像素图）
@@ -164,6 +172,7 @@ typedef struct {
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
 
+    float goldenTimer;       // ★ 金苹果还剩几秒（0 = 地图上没有金苹果）
     float invincibleTimer;   // ★ 无敌还剩几秒
     float shakeTimer;        // ★ 画面震动还剩几秒
     float flashTimer;        // ★ 红色闪光还剩几秒
@@ -192,6 +201,8 @@ void loseLife(Game *g);
 void levelUp(Game *g);
 float getMoveTime(Game *g);
 void stepGame(Game *g);
+void removeGolden(Game *g);
+void checkLevelUp(Game *g);
 void updatePlaying(Game *g);
 int updateGame(Game *g);
 
@@ -233,6 +244,7 @@ void drawMenu(Game *g);
 void drawPlaying(Game *g);
 void drawGame(Game *g, RenderTexture2D canvas);
 void openWindow(void);
+void drawGoldenApple(Game *g, int x, int y);
 
 // ================= effects.c：特效：粒子、飘字、震动、闪光、背景音乐 =================
 void spawnBurst(Game *g, int cellX, int cellY, Color color);

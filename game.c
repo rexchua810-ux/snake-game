@@ -53,7 +53,8 @@ void resetGame(Game *g)
     g->level = 1;             // ★
     g->paused = 0;            // ★
 
-    // ★ 清掉所有特效
+    // ★ 清掉金苹果和所有特效
+    g->goldenTimer = 0;
     g->invincibleTimer = 0;
     g->shakeTimer = 0;
     g->flashTimer = 0;
@@ -178,6 +179,23 @@ void levelUp(Game *g)
     showMessage(g, text);
 }
 
+// ★ 分数够了就升级。用 while：金苹果一次加 3 分，可能一口气跨过升级的门槛
+void checkLevelUp(Game *g)
+{
+    while (g->level < g->score / FOODS_PER_LEVEL + 1)
+        levelUp(g);
+}
+
+// ★ 把地图上的金苹果拿掉（时间到了）
+void removeGolden(Game *g)
+{
+    for (int y = 0; y < g->height; y++)
+        for (int x = 0; x < g->width; x++)
+            if (g->map[y][x] == GOLDEN)
+                g->map[y][x] = EMPTY;
+    g->goldenTimer = 0;
+}
+
 // ★ 依照关卡算出每一步要等多久（关卡越高越快）
 float getMoveTime(Game *g)
 {
@@ -222,6 +240,8 @@ void stepGame(Game *g)
     }
 
     int ate = (g->map[newY][newX] == FOOD);
+    int gotGolden = (g->map[newY][newX] == GOLDEN);   // ★ 金苹果
+    int grow = (ate || gotGolden);                      // ★ 两种苹果都会变长
 
     // ★ 先记住尾巴原本在哪（画的时候要从那里滑过去）
     //   一定要在“吃到食物、长度 +1”之前记，不然会读到还没用过的格子，尾巴会从角落飞过来
@@ -231,7 +251,7 @@ void stepGame(Game *g)
 
     // 3. 撞到自己（没吃到食物时尾巴会移开，所以尾巴那一格不算）
     int checkLength = s->length;
-    if (!ate)
+    if (!grow)
         checkLength = s->length - 1;
     for (int i = 0; i < checkLength && !invincible; i++)
     {
@@ -253,6 +273,18 @@ void stepGame(Game *g)
         addPopup(g, newX, newY, "+1", NEON_YELLOW);      // ★ 飘出 +1
     }
 
+    // ★ 吃到金苹果：长度 +1、分数 +3
+    if (gotGolden)
+    {
+        s->length++;
+        g->score += GOLDEN_POINTS;
+        PlaySound(g->sounds.golden);
+        g->map[newY][newX] = EMPTY;
+        g->goldenTimer = 0;
+        spawnBurst(g, newX, newY, GOLD_COLOR);
+        addPopup(g, newX, newY, "+3", GOLD_COLOR);
+    }
+
     // 5. 移动
     for (int i = s->length - 1; i > 0; i--)
     {
@@ -271,8 +303,8 @@ void stepGame(Game *g)
     if (s->x[last] != oldTailX || s->y[last] != oldTailY)
         neighborDir(oldTailX, oldTailY, s->x[last], s->y[last], &s->tailDirX, &s->tailDirY);
 
-    // 6. 够分数就赢，不够就再放一个新食物
-    if (ate)
+    // 6. 够分数就赢；不够就放新食物、看看要不要升级
+    if (grow)
     {
         if (g->score >= WIN_SCORE)
         {
@@ -281,9 +313,17 @@ void stepGame(Game *g)
         }
         else
         {
-            placeItem(g, FOOD);
-            if (g->score % FOODS_PER_LEVEL == 0)   // ★ 每吃满 5 个就升级
-                levelUp(g);
+            if (ate)
+            {
+                placeItem(g, FOOD);
+                // ★ 地图上还没有金苹果时，有 1/GOLDEN_CHANCE 的机会出现一个
+                if (g->goldenTimer <= 0 && rand() % GOLDEN_CHANCE == 0)
+                {
+                    placeItem(g, GOLDEN);
+                    g->goldenTimer = GOLDEN_TIME;
+                }
+            }
+            checkLevelUp(g);
         }
     }
 
@@ -315,6 +355,12 @@ void updatePlaying(Game *g)
         g->messageTimer -= dt;
     if (g->invincibleTimer > 0)          // ★ 无敌倒数
         g->invincibleTimer -= dt;
+    if (g->goldenTimer > 0)              // ★ 金苹果倒数，时间到就消失
+    {
+        g->goldenTimer -= dt;
+        if (g->goldenTimer <= 0)
+            removeGolden(g);
+    }
     updateEffects(g, dt);                // ★ 粒子、飘字、震动、闪光
 
     g->timer += dt;
