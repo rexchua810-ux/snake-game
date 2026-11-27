@@ -213,90 +213,94 @@ float getMoveTime(Game *g)
 
 // ================= Playing =================
 
-// move the snake one step: check crashes first, then whether something was eaten
-void stepGame(Game *g)
+// where the head goes next. Returns 0 if the snake leaves the map in Classic mode
+int nextHeadPosition(Game *g, int *x, int *y)
 {
     Snake *s = &g->snake;
-    takeQueuedDirection(s);              // the turn actually happens here
-    int newX = s->x[0] + s->dirX;
-    int newY = s->y[0] + s->dirY;
+    *x = s->x[0] + s->dirX;
+    *y = s->y[0] + s->dirY;
 
-    // 1. leaving the map
-    if (newX < 0 || newX >= g->width || newY < 0 || newY >= g->height)
+    if (*x < 0 || *x >= g->width || *y < 0 || *y >= g->height)
     {
         if (g->mode == CLASSIC)
-        {
-            loseLife(g);
-            return;
-        }
+            return 0;
         // No Walls mode: come out on the opposite side
-        newX = (newX + g->width) % g->width;
-        newY = (newY + g->height) % g->height;
+        *x = (*x + g->width) % g->width;
+        *y = (*y + g->height) % g->height;
     }
+    return 1;
+}
 
-    int invincible = (g->invincibleTimer > 0);   // invincible: hitting an obstacle does not count (hitting itself or a wall still does)
+// does moving the head to (x, y) crash into an obstacle or the snake's own body?
+//   grow = 1 if the snake eats an apple this step (then the tail does not move away)
+int isCrash(Game *g, int x, int y, int grow)
+{
+    Snake *s = &g->snake;
 
-    // 2. hit an obstacle
-    if (g->map[newY][newX] == OBSTACLE && !invincible)
-    {
-        loseLife(g);
-        return;
-    }
+    // obstacles do not count while invincible (the body and walls still do)
+    if (g->map[y][x] == OBSTACLE && g->invincibleTimer <= 0)
+        return 1;
 
-    int ate = (g->map[newY][newX] == FOOD);
-    int gotGolden = (g->map[newY][newX] == GOLDEN);   // Golden apple
-    int grow = (ate || gotGolden);                      // both kinds of apple make the snake longer
-
-    // remember where the tail was (it is drawn sliding from there)
-    //   must be saved before "length + 1", otherwise an unused cell is read and the tail flies in from a corner
-    int oldTailX = s->x[s->length - 1];
-    int oldTailY = s->y[s->length - 1];
-    int gotBooster = (g->map[newY][newX] == BOOSTER);
-
-    // 3. hit itself (when nothing is eaten the tail moves away, so the tail cell does not count)
+    // when the snake does not grow, the tail moves away, so the tail cell does not count
     int checkLength = s->length;
     if (!grow)
         checkLength = s->length - 1;
     for (int i = 0; i < checkLength; i++)
-    {
-        if (s->x[i] == newX && s->y[i] == newY)
-        {
-            loseLife(g);
-            return;
-        }
-    }
+        if (s->x[i] == x && s->y[i] == y)
+            return 1;
+    return 0;
+}
 
-    // 4. food eaten: length + 1, score + 1
-    if (ate)
+// the snake eats the item on (x, y): remove it from the map, add points, play a sound, show effects
+void eatItem(Game *g, int x, int y, int item)
+{
+    if (item == FOOD)
     {
-        s->length++;
         g->score++;
         PlaySound(g->sounds.eat);
-        g->map[newY][newX] = EMPTY;
-        spawnBurst(g, newX, newY, NEON_RED);             // red particle burst
-        addPopup(g, newX, newY, "+1", NEON_YELLOW);      // "+1" floats up
+        spawnBurst(g, x, y, NEON_RED);             // red particle burst
+        addPopup(g, x, y, "+1", NEON_YELLOW);      // "+1" floats up
     }
-
-    // golden apple eaten: length + 1, score + 3
-    if (gotGolden)
+    else if (item == GOLDEN)
     {
-        s->length++;
         g->score += GOLDEN_POINTS;
         PlaySound(g->sounds.golden);
-        g->map[newY][newX] = EMPTY;
         g->goldenTimer = 0;
-        spawnBurst(g, newX, newY, GOLD_COLOR);
-        addPopup(g, newX, newY, "+3", GOLD_COLOR);
+        spawnBurst(g, x, y, GOLD_COLOR);
+        addPopup(g, x, y, "+3", GOLD_COLOR);
     }
+    else if (item == BOOSTER)
+    {
+        PlaySound(g->sounds.booster);
+    }
+    else
+    {
+        return;                                // nothing to eat (an empty cell, or an obstacle while invincible)
+    }
+    g->map[y][x] = EMPTY;                      // the eaten item disappears from the map
+}
 
-    // 5. move
+// move every segment one cell forward and put the head on (x, y); grow = 1 adds one segment
+void moveSnake(Game *g, int x, int y, int grow)
+{
+    Snake *s = &g->snake;
+
+    // remember where the tail was (it is drawn sliding from there)
+    //   must be saved before "length + 1", otherwise an unused cell is read
+    int oldTailX = s->x[s->length - 1];
+    int oldTailY = s->y[s->length - 1];
+
+    if (grow)
+        s->length++;
+
+    // from the tail to the head: every segment takes the place of the one in front of it
     for (int i = s->length - 1; i > 0; i--)
     {
         s->x[i] = s->x[i - 1];
         s->y[i] = s->y[i - 1];
     }
-    s->x[0] = newX;
-    s->y[0] = newY;
+    s->x[0] = x;
+    s->y[0] = y;
 
     // tail: remember which cell it slides from and to (the tail stays still after eating)
     s->oldTailDirX = s->tailDirX;
@@ -306,39 +310,63 @@ void stepGame(Game *g)
     int last = s->length - 1;
     if (s->x[last] != oldTailX || s->y[last] != oldTailY)
         neighborDir(oldTailX, oldTailY, s->x[last], s->y[last], &s->tailDirX, &s->tailDirY);
+}
 
-    // 6. enough points wins; otherwise place new food and check for a level up
-    if (grow)
+// after eating (the snake has already moved): check for a win, place new items, level up, apply a booster
+void afterEating(Game *g, int item)
+{
+    if (item == FOOD || item == GOLDEN)
     {
-        if (g->score >= WIN_SCORE)
+        if (g->score >= WIN_SCORE)              // enough points: win
         {
             g->state = WIN;
             PlaySound(g->sounds.win);
+            return;
         }
-        else
+        if (item == FOOD)
         {
-            if (ate)
+            placeItem(g, FOOD);
+            // if there is no golden apple yet, 1 in GOLDEN_CHANCE chance to spawn one
+            if (g->goldenTimer <= 0 && rand() % GOLDEN_CHANCE == 0)
             {
-                placeItem(g, FOOD);
-                // if there is no golden apple yet, 1 in GOLDEN_CHANCE chance to spawn one
-                if (g->goldenTimer <= 0 && rand() % GOLDEN_CHANCE == 0)
-                {
-                    placeItem(g, GOLDEN);
-                    g->goldenTimer = GOLDEN_TIME;
-                }
+                placeItem(g, GOLDEN);
+                g->goldenTimer = GOLDEN_TIME;
             }
-            checkLevelUp(g);
         }
+        checkLevelUp(g);
     }
-
-    // 7. booster eaten
-    if (gotBooster)
+    else if (item == BOOSTER)
     {
-        g->map[newY][newX] = EMPTY;
-        PlaySound(g->sounds.booster);
-        applyBooster(g);
+        applyBooster(g);                        // rand() decides which booster
         placeItem(g, BOOSTER);
     }
+}
+
+// move the snake one step
+//   1. where does the head go?  2. does it crash?  3. eat  4. move  5. what happens after eating
+void stepGame(Game *g)
+{
+    takeQueuedDirection(&g->snake);             // the turn actually happens here
+
+    int x, y;
+    if (!nextHeadPosition(g, &x, &y))           // left the map (Classic mode)
+    {
+        loseLife(g);
+        return;
+    }
+
+    int item = g->map[y][x];                    // what is on the next cell
+    int grow = (item == FOOD || item == GOLDEN);   // both kinds of apple make the snake longer
+
+    if (isCrash(g, x, y, grow))                 // obstacle or own body
+    {
+        loseLife(g);
+        return;
+    }
+
+    eatItem(g, x, y, item);
+    moveSnake(g, x, y, grow);
+    afterEating(g, item);
 }
 
 // everything done each frame while playing
