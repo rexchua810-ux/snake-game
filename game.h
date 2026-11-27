@@ -155,34 +155,46 @@ typedef struct {
     Texture2D cover;     // start menu cover (600x660, middle panel left empty, the code writes the text)
 } Textures;
 
-// all game data lives here
+// all game data lives here, grouped by topic
 typedef struct {
-    int **map;           // map (2D array from malloc), NULL before the game starts
-    int width, height;   // map size (in cells)
-    int cell;            // size of one cell (pixels)
-    int offsetX, offsetY;// where the map is drawn in the window (centered)
-    int mode;            // CLASSIC / NO_WALLS
-    Snake snake;
+    // ----- game state -----
+    int state;               // PLAYING / LOSE / WIN / MENU
+    int mode;                // CLASSIC / NO_WALLS
     int score;
-    int state;           // PLAYING / LOSE / WIN / MENU
-    float timer;
     int lives;
-    float speedTimer;
-    char message[32];    // char array: the message text is copied in here
-    float messageTimer;
-    int level;           // current level
-    int paused;          // 1 = paused
-    Sounds sounds;       // sound effects
-    Textures textures;   // images
-    int menuSelected;    // selected menu row (0 width, 1 height, 2 mode)
-    const char *menuError; // error text on the start menu
+    int level;               // current level
+    int paused;              // 1 = paused
 
-    float goldenTimer;       // seconds left for the golden apple (0 = no golden apple on the map)
-    float invincibleTimer;   // seconds of invincibility left
-    float shakeTimer;        // seconds of screen shake left
-    float flashTimer;        // seconds of red flash left
-    Particle particles[MAX_PARTICLES];   // fixed-size array stored inside Game (not a global variable)
+    // ----- map -----
+    int **map;               // 2D array from malloc, NULL before the game starts
+    int width, height;       // map size (in cells)
+    int cell;                // size of one cell (pixels)
+    int offsetX, offsetY;    // where the map is drawn in the window (centered)
+
+    // ----- snake -----
+    Snake snake;
+
+    // ----- timers (seconds) -----
+    float timer;             // time collected toward the next step
+    float speedTimer;        // speed boost left
+    float goldenTimer;       // golden apple left (0 = no golden apple on the map)
+    float invincibleTimer;   // invincibility left
+    float messageTimer;      // message left on screen
+    char message[32];        // message text (copied in)
+
+    // ----- start menu -----
+    int menuSelected;        // selected row (0 width, 1 height, 2 mode)
+    const char *menuError;   // error text
+
+    // ----- effects -----
+    float shakeTimer;        // screen shake left
+    float flashTimer;        // red flash left
+    Particle particles[MAX_PARTICLES];   // fixed-size arrays inside Game (not global variables)
     Popup popups[MAX_POPUPS];
+
+    // ----- assets -----
+    Sounds sounds;
+    Textures textures;
     int musicOn;             // 1 = background music on
 } Game;
 

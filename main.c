@@ -11,7 +11,7 @@ int main(void)
 {
     srand(time(NULL));
 
-    Game game;
+    Game game = {0};
     initGame(&game);
 
     openWindow();
