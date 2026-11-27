@@ -374,7 +374,9 @@ void drawPlaying(Game *g)
         drawDashedRect(frame, 2, NEON_GREEN);
     }
 
-    drawSnake(g);
+    // ★ 无敌中：蛇一闪一闪（每 0.1 秒切换一次画 / 不画）
+    if (g->invincibleTimer <= 0 || (int)(g->invincibleTimer * 10) % 2 == 0)
+        drawSnake(g);
 
     drawEffects(g);     // ★ 粒子、飘字、红色闪光
 

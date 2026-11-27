@@ -32,6 +32,7 @@
 #define LEVEL_OBSTACLES 2      // 每升一级多 2 个障碍物
 
 // ★ 手感特效
+#define INVINCIBLE_TIME 2.0f   // 复活后无敌几秒
 #define SHAKE_TIME      0.3f   // 撞到时画面震动几秒
 #define SHAKE_POWER     8      // 震动最大几像素
 #define FLASH_TIME      0.3f   // 红色闪光几秒
@@ -163,6 +164,7 @@ typedef struct {
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
 
+    float invincibleTimer;   // ★ 无敌还剩几秒
     float shakeTimer;        // ★ 画面震动还剩几秒
     float flashTimer;        // ★ 红色闪光还剩几秒
     Particle particles[MAX_PARTICLES];   // ★ 固定大小的数组，装在 Game 里（不是全局变量）

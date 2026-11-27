@@ -54,6 +54,7 @@ void resetGame(Game *g)
     g->paused = 0;            // ★
 
     // ★ 清掉所有特效
+    g->invincibleTimer = 0;
     g->shakeTimer = 0;
     g->flashTimer = 0;
     for (int i = 0; i < MAX_PARTICLES; i++)
@@ -159,6 +160,7 @@ void loseLife(Game *g)
     {
         resetSnake(g);
         g->speedTimer = 0;
+        g->invincibleTimer = INVINCIBLE_TIME;   // ★ 复活后无敌一下子
         showMessage(g, "Lost a life!");
     }
 }
@@ -210,8 +212,10 @@ void stepGame(Game *g)
         newY = (newY + g->height) % g->height;
     }
 
+    int invincible = (g->invincibleTimer > 0);   // ★ 无敌中：撞到障碍物和自己都不算
+
     // 2. 撞障碍物
-    if (g->map[newY][newX] == OBSTACLE)
+    if (g->map[newY][newX] == OBSTACLE && !invincible)
     {
         loseLife(g);
         return;
@@ -229,7 +233,7 @@ void stepGame(Game *g)
     int checkLength = s->length;
     if (!ate)
         checkLength = s->length - 1;
-    for (int i = 0; i < checkLength; i++)
+    for (int i = 0; i < checkLength && !invincible; i++)
     {
         if (s->x[i] == newX && s->y[i] == newY)
         {
@@ -309,6 +313,8 @@ void updatePlaying(Game *g)
         g->speedTimer -= dt;
     if (g->messageTimer > 0)
         g->messageTimer -= dt;
+    if (g->invincibleTimer > 0)          // ★ 无敌倒数
+        g->invincibleTimer -= dt;
     updateEffects(g, dt);                // ★ 粒子、飘字、震动、闪光
 
     g->timer += dt;
