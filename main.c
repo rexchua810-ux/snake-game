@@ -5,9 +5,9 @@
 #include "raylib.h"
 
 // ===== 画面大小 =====
-#define SCREEN_W 600        // 窗口宽
+#define SCREEN_W 600        // screen of the window
 #define HUD_H    60         // 上方显示分数的区域高度
-#define BOARD    600        // 地图区域最大 600x600
+#define BOARD    600        // the limit domain of the map 600x600
 #define SCREEN_H (HUD_H + BOARD)
 #define BOARD_MARGIN 10     // ★ 地图四周留几像素给外框
 
