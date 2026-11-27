@@ -1,4 +1,4 @@
-// effects.c — 特效：吃到东西的粒子和飘字、撞到时的震动和闪光
+// effects.c — 特效：吃到东西的粒子和飘字、撞到时的震动和闪光、背景音乐
 
 #include <stdio.h>    // snprintf
 #include <stdlib.h>   // rand
@@ -113,4 +113,21 @@ void drawEffects(Game *g)
     // 红色闪光：整个画面盖一层红色，慢慢变透明
     if (g->flashTimer > 0)
         DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(NEON_RED, 0.4f * g->flashTimer / FLASH_TIME));
+}
+
+// ================= 背景音乐 =================
+
+// ★ 音乐是一段 8 秒的音效：播完了就从头再播一次，就变成一直循环
+void updateMusic(Game *g)
+{
+    if (g->musicOn && !IsSoundPlaying(g->sounds.music))
+        PlaySound(g->sounds.music);
+}
+
+// ★ 按 N：音乐开 / 关
+void toggleMusic(Game *g)
+{
+    g->musicOn = !g->musicOn;
+    if (!g->musicOn)
+        StopSound(g->sounds.music);
 }

@@ -46,6 +46,7 @@
 #define PARTICLE_LIFE   0.6f   // 粒子活几秒
 #define MAX_POPUPS      8      // 画面上最多几个飘字（+1、+3）
 #define POPUP_LIFE      0.8f   // 飘字显示几秒
+#define MUSIC_VOLUME    0.35f  // ★ 背景音乐音量（0 ~ 1）
 #define SAFE_DISTANCE   4      // 新障碍物至少离蛇头这么远，避免突然出现在面前
 
 // ===== 地图大小的范围和默认值 =====
@@ -135,6 +136,7 @@ typedef struct {
     Sound levelUp;   // 升级
     Sound win;       // 赢了
     Sound golden;    // ★ 吃到金苹果
+    Sound music;     // ★ 背景音乐（8 秒，一直循环）
 } Sounds;
 
 // ★ 所有图片（你画的像素图）
@@ -178,6 +180,7 @@ typedef struct {
     float flashTimer;        // ★ 红色闪光还剩几秒
     Particle particles[MAX_PARTICLES];   // ★ 固定大小的数组，装在 Game 里（不是全局变量）
     Popup popups[MAX_POPUPS];
+    int musicOn;             // ★ 1 = 播放背景音乐
 } Game;
 
 // ================= map.c：地图：建立/释放地图、在随机空格放东西、方向计算 =================
@@ -217,6 +220,8 @@ void handleInput(Game *g);
 Sound makeSound(float startFreq, float endFreq, float duration);
 void loadSounds(Sounds *s);
 void unloadSounds(Sounds *s);
+float noteFreq(int semitone);
+Sound makeMusic(void);
 Texture2D loadImage(const char *path);
 void loadTextures(Textures *t);
 void unloadTextures(Textures *t);
@@ -252,5 +257,7 @@ void addPopup(Game *g, int cellX, int cellY, const char *text, Color color);
 void startCrashEffect(Game *g);
 void updateEffects(Game *g, float dt);
 void drawEffects(Game *g);
+void updateMusic(Game *g);
+void toggleMusic(Game *g);
 
 #endif

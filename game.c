@@ -112,6 +112,7 @@ void initGame(Game *g)
     g->state = MENU;
     g->menuSelected = 0;
     g->menuError = "";
+    g->musicOn = 1;            // ★ 一开始就播放背景音乐
 }
 
 // ================= 道具与生命 =================
@@ -378,6 +379,11 @@ void updatePlaying(Game *g)
 // ★ 每一帧的更新：看现在在哪个画面，做对应的事。回传 1 表示要退出
 int updateGame(Game *g)
 {
+    // ★ 背景音乐：N 开关；播完了就从头再播（任何画面都有效）
+    if (IsKeyPressed(KEY_N))
+        toggleMusic(g);
+    updateMusic(g);
+
     if (g->state == MENU)
     {
         updateMenu(g);

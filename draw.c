@@ -399,6 +399,10 @@ void drawPlaying(Game *g)
         DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
         drawNeonText("PAUSED", SCREEN_H / 2 - 40, 40, NEON_CYAN);
         drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, DIM_TEXT);
+        if (g->musicOn)
+            drawCenterText("N: Music ON", SCREEN_H / 2 + 50, 20, DIM_TEXT);
+        else
+            drawCenterText("N: Music OFF", SCREEN_H / 2 + 50, 20, DIM_TEXT);
     }
 
     // 结束画面
