@@ -1,5 +1,6 @@
 // draw.c — 画面：所有画图的函数，以及打开窗口
 
+#include <stdlib.h>   // rand
 #include <math.h>     // sinf、fminf
 #include "game.h"
 
@@ -233,7 +234,7 @@ void drawEnergyGrid(Game *g)
 {
     // sinf 的结果在 -1 ~ 1 之间，所以透明度在 0.2 ~ 0.5 之间来回变化
     float glow = 0.35f + 0.15f * sinf(GetTime() * 2);
-    Color line = Fade(NEON_PURPLE, glow);
+    Color line = Fade(NEON_GREEN, glow);   // ★ 绿色地板配绿色的能量线
 
     int right  = g->offsetX + g->width * g->cell;
     int bottom = g->offsetY + g->height * g->cell;
@@ -375,6 +376,8 @@ void drawPlaying(Game *g)
 
     drawSnake(g);
 
+    drawEffects(g);     // ★ 粒子、飘字、红色闪光
+
     // 上方显示分数、生命、关卡，下面一条霓虹线
     DrawText(TextFormat("Score: %d / %d", g->score, WIN_SCORE), 10, 20, 20, NEON_CYAN);
     DrawText(TextFormat("Lives: %d", g->lives), 200, 20, 20, NEON_PINK);
@@ -431,6 +434,14 @@ void drawGame(Game *g, RenderTexture2D canvas)
     float drawH = SCREEN_H * scale;
     Rectangle source = { 0, 0, SCREEN_W, -SCREEN_H };   // 高度是负的：画布存起来是上下颠倒的，要翻回来
     Rectangle dest = { (GetScreenWidth() - drawW) / 2, (GetScreenHeight() - drawH) / 2, drawW, drawH };
+
+    // ★ 画面震动：把整个画面往随机方向偏几像素，越接近结束偏得越少
+    if (g->shakeTimer > 0)
+    {
+        int power = (int)(SHAKE_POWER * g->shakeTimer / SHAKE_TIME) + 1;
+        dest.x += (rand() % (2 * power + 1) - power) * scale;
+        dest.y += (rand() % (2 * power + 1) - power) * scale;
+    }
 
     // 4. 把画布贴到窗口上
     BeginDrawing();

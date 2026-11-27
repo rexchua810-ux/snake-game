@@ -53,6 +53,14 @@ void resetGame(Game *g)
     g->level = 1;             // ★
     g->paused = 0;            // ★
 
+    // ★ 清掉所有特效
+    g->shakeTimer = 0;
+    g->flashTimer = 0;
+    for (int i = 0; i < MAX_PARTICLES; i++)
+        g->particles[i].life = 0;
+    for (int i = 0; i < MAX_POPUPS; i++)
+        g->popups[i].life = 0;
+
     int obstacleCount = g->width * g->height / OBSTACLE_RATE;
     for (int i = 0; i < obstacleCount; i++)
         placeItem(g, OBSTACLE);
@@ -140,6 +148,8 @@ void applyBooster(Game *g)
 void loseLife(Game *g)
 {
     PlaySound(g->sounds.crash);    // ★
+    spawnBurst(g, g->snake.x[0], g->snake.y[0], NEON_PINK);   // ★ 在蛇头的位置炸开
+    startCrashEffect(g);           // ★ 画面震动 + 红色闪光
     g->lives--;
     if (g->lives <= 0)
     {
@@ -235,6 +245,8 @@ void stepGame(Game *g)
         g->score++;
         PlaySound(g->sounds.eat);  // ★
         g->map[newY][newX] = EMPTY;
+        spawnBurst(g, newX, newY, NEON_RED);             // ★ 炸开红色粒子
+        addPopup(g, newX, newY, "+1", NEON_YELLOW);      // ★ 飘出 +1
     }
 
     // 5. 移动
@@ -297,6 +309,7 @@ void updatePlaying(Game *g)
         g->speedTimer -= dt;
     if (g->messageTimer > 0)
         g->messageTimer -= dt;
+    updateEffects(g, dt);                // ★ 粒子、飘字、震动、闪光
 
     g->timer += dt;
     float moveTime = getMoveTime(g);   // ★ 改用关卡算出来的速度
@@ -323,6 +336,7 @@ int updateGame(Game *g)
     }
     else  // LOSE 或 WIN
     {
+        updateEffects(g, GetFrameTime());   // ★ 结束画面也要让震动、粒子跑完
         if (IsKeyPressed(KEY_R))
             resetGame(g);
         if (IsKeyPressed(KEY_M))     // ★ 回开始画面（会重新选大小，所以先释放内存）

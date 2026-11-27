@@ -30,6 +30,16 @@
 #define LEVEL_SPEEDUP   0.015f // 每升一级，每步少等 0.015 秒（变快）
 #define MIN_MOVE_TIME   0.06f  // 最快不超过这个速度
 #define LEVEL_OBSTACLES 2      // 每升一级多 2 个障碍物
+
+// ★ 手感特效
+#define SHAKE_TIME      0.3f   // 撞到时画面震动几秒
+#define SHAKE_POWER     8      // 震动最大几像素
+#define FLASH_TIME      0.3f   // 红色闪光几秒
+#define MAX_PARTICLES   64     // 画面上最多几颗粒子
+#define BURST_COUNT     16     // 吃一次炸出几颗
+#define PARTICLE_LIFE   0.6f   // 粒子活几秒
+#define MAX_POPUPS      8      // 画面上最多几个飘字（+1、+3）
+#define POPUP_LIFE      0.8f   // 飘字显示几秒
 #define SAFE_DISTANCE   4      // 新障碍物至少离蛇头这么远，避免突然出现在面前
 
 // ===== 地图大小的范围和默认值 =====
@@ -50,10 +60,10 @@
 #define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
 
 // ===== ★ 金属地板配色 =====
-#define PLATE_COLOR  (Color){ 34, 22, 54, 255 }    // 钢板底色（★ 偏紫色）
-#define PLATE_LIGHT  (Color){ 58, 40, 86, 255 }    // 钢板左上亮边
-#define PLATE_DARK   (Color){ 16, 10, 28, 255 }    // 钢板右下暗边
-#define RIVET_COLOR  (Color){ 88, 66, 122, 255 }   // 螺丝钉
+#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }    // 钢板底色（★ 改成深绿色，紫色的蛇比较明显）
+#define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // 钢板左上亮边
+#define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // 钢板右下暗边
+#define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // 螺丝钉
 
 // 地图格子里的东西
 #define EMPTY    0
@@ -92,6 +102,22 @@ typedef struct {
     int tailDirX, tailDirY;       // 尾巴这一步往哪个方向滑
     int oldTailDirX, oldTailDirY; // 尾巴上一步的方向（转弯时用来慢慢转过去）
 } Snake;
+
+// ★ 一颗粒子（吃到东西时炸开的小方块）
+typedef struct {
+    float x, y;          // 位置（像素）
+    float vx, vy;        // 速度（每秒移动几像素）
+    float life;          // 还剩几秒；0 = 没在用
+    Color color;
+} Particle;
+
+// ★ 飘字（例如吃到苹果时往上飘的 "+1"）
+typedef struct {
+    float x, y;
+    float life;          // 还剩几秒；0 = 没在用
+    char text[8];
+    Color color;
+} Popup;
 
 // ★ 所有音效
 typedef struct {
@@ -136,6 +162,11 @@ typedef struct {
     Textures textures;   // ★ 图片
     int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
     const char *menuError; // ★ 开始画面的错误提示
+
+    float shakeTimer;        // ★ 画面震动还剩几秒
+    float flashTimer;        // ★ 红色闪光还剩几秒
+    Particle particles[MAX_PARTICLES];   // ★ 固定大小的数组，装在 Game 里（不是全局变量）
+    Popup popups[MAX_POPUPS];
 } Game;
 
 // ================= map.c：地图：建立/释放地图、在随机空格放东西、方向计算 =================
@@ -200,5 +231,12 @@ void drawMenu(Game *g);
 void drawPlaying(Game *g);
 void drawGame(Game *g, RenderTexture2D canvas);
 void openWindow(void);
+
+// ================= effects.c：特效：粒子、飘字、震动、闪光、背景音乐 =================
+void spawnBurst(Game *g, int cellX, int cellY, Color color);
+void addPopup(Game *g, int cellX, int cellY, const char *text, Color color);
+void startCrashEffect(Game *g);
+void updateEffects(Game *g, float dt);
+void drawEffects(Game *g);
 
 #endif

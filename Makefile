@@ -7,7 +7,7 @@ CC      = clang
 CFLAGS  = -Wall -Wextra $(shell pkg-config --cflags raylib)
 LDLIBS  = $(shell pkg-config --libs raylib)
 
-SRC = main.c map.c game.c input.c assets.c draw.c
+SRC = main.c map.c game.c input.c assets.c draw.c effects.c
 OBJ = $(SRC:.c=.o)
 
 snake: $(OBJ)

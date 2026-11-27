@@ -15,9 +15,9 @@ int main(void)
     RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // 600x660 的画布
     SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // 缩放时比较平滑
 
-    InitAudioDevice();                // ★ 打开声音
+    InitAudioDevice();                // 打开声音
     loadSounds(&game.sounds);         // 做好音效
-    loadTextures(&game.textures);     // ★ 读进图片
+    loadTextures(&game.textures);     // 读进图片
 
     int quit = 0;
     while (!WindowShouldClose() && !quit)
