@@ -37,7 +37,7 @@
 #define GOLDEN_POINTS   3      // 金苹果值几分
 
 // ★ 手感特效
-#define INVINCIBLE_TIME 2.0f   // 复活后无敌几秒
+#define INVINCIBLE_TIME 2.0f   // 复活后无敌几秒（只对障碍物有效）
 #define SHAKE_TIME      0.3f   // 撞到时画面震动几秒
 #define SHAKE_POWER     8      // 震动最大几像素
 #define FLASH_TIME      0.3f   // 红色闪光几秒

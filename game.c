@@ -231,7 +231,7 @@ void stepGame(Game *g)
         newY = (newY + g->height) % g->height;
     }
 
-    int invincible = (g->invincibleTimer > 0);   // ★ 无敌中：撞到障碍物和自己都不算
+    int invincible = (g->invincibleTimer > 0);   // ★ 无敌中：撞到障碍物不算（撞到自己或墙还是会死）
 
     // 2. 撞障碍物
     if (g->map[newY][newX] == OBSTACLE && !invincible)
@@ -254,7 +254,7 @@ void stepGame(Game *g)
     int checkLength = s->length;
     if (!grow)
         checkLength = s->length - 1;
-    for (int i = 0; i < checkLength && !invincible; i++)
+    for (int i = 0; i < checkLength; i++)
     {
         if (s->x[i] == newX && s->y[i] == newY)
         {
