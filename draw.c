@@ -329,27 +329,25 @@ void drawMenu(Game *g)
     drawNeonText("ENTER: start", 600, 20, NEON_YELLOW);
 }
 
-// draw the game screen (map, snake, score, messages, end screen)
-void drawPlaying(Game *g)
+// floor: use floor.png if it exists, otherwise draw metal plates in code
+void drawFloor(Game *g)
 {
-    Textures *t = &g->textures;
-
-    // 1. floor: use floor.png if it exists, otherwise draw metal plates in code
     for (int y = 0; y < g->height; y++)
     {
         for (int x = 0; x < g->width; x++)
         {
-            if (t->floor.id > 0)
-                drawSprite(g, t->floor, x, y, 0, 0, 1, PLATE_COLOR);
+            if (g->textures.floor.id > 0)
+                drawSprite(g, g->textures.floor, x, y, 0, 0, 1, PLATE_COLOR);
             else
                 drawMetalPlate(g, x, y);
         }
     }
+}
 
-    // 2. glowing energy lines
-    drawEnergyGrid(g);
-
-    // 3. food, obstacles, boosters
+// food, obstacles, boosters and the golden apple
+void drawItems(Game *g)
+{
+    Textures *t = &g->textures;
     for (int y = 0; y < g->height; y++)
     {
         for (int x = 0; x < g->width; x++)
@@ -361,11 +359,15 @@ void drawPlaying(Game *g)
             else if (g->map[y][x] == BOOSTER)
                 drawSprite(g, t->booster, x, y, 0, 0, 1, NEON_PURPLE);
             else if (g->map[y][x] == GOLDEN)
-                drawGoldenApple(g, x, y);       // Golden apple
+                drawGoldenApple(g, x, y);
         }
     }
+}
 
-    // map border: aqua green (contrasts with purple). Solid line in Classic (wall), dashed in No Walls (can pass through)
+// map border: aqua green (contrasts with purple)
+//   solid line in Classic (a wall), dashed line in No Walls (can pass through)
+void drawBorder(Game *g)
+{
     Rectangle frame = { g->offsetX - 3, g->offsetY - 3, g->width * g->cell + 6, g->height * g->cell + 6 };
     Rectangle glow  = { frame.x - 3, frame.y - 3, frame.width + 6, frame.height + 6 };
     if (g->mode == CLASSIC)
@@ -378,47 +380,64 @@ void drawPlaying(Game *g)
         drawDashedRect(glow, 3, Fade(NEON_GREEN, 0.25f));
         drawDashedRect(frame, 2, NEON_GREEN);
     }
+}
 
-    // invincible: the snake blinks (switches between drawn / hidden every 0.1 s)
-    if (g->invincibleTimer <= 0 || (int)(g->invincibleTimer * 10) % 2 == 0)
-        drawSnake(g);
-
-    drawEffects(g);     // particles, floating text, red flash
-
-    // score, lives and level at the top, with a neon line underneath
+// top bar: score, lives and level with a neon line underneath, plus the current message
+void drawHud(Game *g)
+{
     DrawText(TextFormat("Score: %d / %d", g->score, WIN_SCORE), 10, 20, 20, NEON_CYAN);
     DrawText(TextFormat("Lives: %d", g->lives), 200, 20, 20, NEON_PINK);
     DrawText(TextFormat("Level: %d", g->level), 320, 20, 20, NEON_YELLOW);
     DrawText("P: Pause", SCREEN_W - 100, 20, 20, DIM_TEXT);
     DrawLine(0, HUD_H - 1, SCREEN_W, HUD_H - 1, Fade(NEON_PINK, 0.5f));
 
-    // message text
     if (g->messageTimer > 0)
         drawNeonText(g->message, HUD_H + 20, 30, NEON_YELLOW);
+}
 
-    // pause screen
+// pause screen: darken everything and show the keys
+void drawPauseScreen(Game *g)
+{
+    DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
+    drawNeonText("PAUSED", SCREEN_H / 2 - 40, 40, NEON_CYAN);
+    drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, DIM_TEXT);
+    if (g->musicOn)
+        drawCenterText("N: Music ON", SCREEN_H / 2 + 50, 20, DIM_TEXT);
+    else
+        drawCenterText("N: Music OFF", SCREEN_H / 2 + 50, 20, DIM_TEXT);
+}
+
+// end screen: win or lose, then ask to restart, go to the menu or quit
+void drawEndScreen(Game *g)
+{
+    DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
+    int midY = SCREEN_H / 2;
+    if (g->state == WIN)
+        drawNeonText("YOU WIN!", midY - 40, 40, NEON_YELLOW);
+    else
+        drawNeonText("GAME OVER", midY - 40, 40, NEON_RED);
+    drawCenterText("R: Restart   M: Menu   Q: Quit", midY + 20, 20, WHITE);
+}
+
+// draw the game screen, from the bottom layer to the top layer
+void drawPlaying(Game *g)
+{
+    drawFloor(g);
+    drawEnergyGrid(g);
+    drawItems(g);
+    drawBorder(g);
+
+    // invincible: the snake blinks (switches between drawn / hidden every 0.1 s)
+    if (g->invincibleTimer <= 0 || (int)(g->invincibleTimer * 10) % 2 == 0)
+        drawSnake(g);
+
+    drawEffects(g);     // particles, floating text, red flash
+    drawHud(g);
+
     if (g->paused)
-    {
-        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
-        drawNeonText("PAUSED", SCREEN_H / 2 - 40, 40, NEON_CYAN);
-        drawCenterText("Press P to continue", SCREEN_H / 2 + 20, 20, DIM_TEXT);
-        if (g->musicOn)
-            drawCenterText("N: Music ON", SCREEN_H / 2 + 50, 20, DIM_TEXT);
-        else
-            drawCenterText("N: Music OFF", SCREEN_H / 2 + 50, 20, DIM_TEXT);
-    }
-
-    // end screen
+        drawPauseScreen(g);
     if (g->state != PLAYING)
-    {
-        DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
-        int midY = SCREEN_H / 2;
-        if (g->state == WIN)
-            drawNeonText("YOU WIN!", midY - 40, 40, NEON_YELLOW);
-        else
-            drawNeonText("GAME OVER", midY - 40, 40, NEON_RED);
-        drawCenterText("R: Restart   M: Menu   Q: Quit", midY + 20, 20, WHITE);
-    }
+        drawEndScreen(g);
 }
 
 // draw everything: first on a fixed 600x660 "canvas", then scale it to fit the window
