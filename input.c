@@ -1,10 +1,13 @@
-// input.c — 键盘输入：开始画面的选项、W/A/S/D 控制蛇
+// input.c — keyboard input: start menu options, W/A/S/D snake control
+// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
+//   The author reviewed the code, tested it in the game, and can explain how it works.
+//   See "Use of Generative AI" in README.md for details.
 
 #include "game.h"
 
-// ================= 开始画面 =================
+// ================= Start menu =================
 
-// ★ 修改一个数字：打数字会接在后面，Backspace 删掉最后一位
+// edit a number: typed digits are appended, Backspace deletes the last digit
 int editNumber(int value)
 {
     int c = GetCharPressed();
@@ -13,7 +16,7 @@ int editNumber(int value)
         if (c >= '0' && c <= '9')
         {
             value = value * 10 + (c - '0');
-            if (value > 99)              // 超过两位数就从这个数字重新开始
+            if (value > 99)              // more than two digits: start again from this digit
                 value = c - '0';
         }
         c = GetCharPressed();
@@ -27,24 +30,24 @@ int editNumber(int value)
     return value;
 }
 
-// ★ 开始画面的按键
+// keys on the start menu
 void updateMenu(Game *g)
 {
-    // 上下选项目
+    // move between rows
     if (IsKeyPressed(KEY_UP) && g->menuSelected > 0)
         g->menuSelected--;
     if (IsKeyPressed(KEY_DOWN) && g->menuSelected < 2)
         g->menuSelected++;
 
-    // 修改目前选到的项目
+    // change the selected row
     if (g->menuSelected == 0)
         g->width = editNumber(g->width);
     else if (g->menuSelected == 1)
         g->height = editNumber(g->height);
     else if (IsKeyPressed(KEY_LEFT) || IsKeyPressed(KEY_RIGHT))
-        g->mode = 1 - g->mode;           // 0 变 1、1 变 0
+        g->mode = 1 - g->mode;           // 0 becomes 1, 1 becomes 0
 
-    // 按 Enter：大小合格才开始
+    // Enter: start only if the size is valid
     if (IsKeyPressed(KEY_ENTER))
     {
         if (g->width < MIN_SIZE || g->width > MAX_SIZE ||
@@ -58,10 +61,10 @@ void updateMenu(Game *g)
     }
 }
 
-// ================= 蛇的操控 =================
+// ================= Snake control =================
 
-// ★ 按下方向键：先放进排队，等蛇真的走下一步时才转弯
-//   跟“排在最后的方向”比较：一样的不用排，相反的（掉头）不允许
+// direction key pressed: queue it, the snake turns on its next real step
+//   compared with the last queued direction: the same direction is skipped, the opposite one (U-turn) is not allowed
 void setDirection(Game *g, int dx, int dy)
 {
     Snake *s = &g->snake;
@@ -73,11 +76,11 @@ void setDirection(Game *g, int dx, int dy)
         lastY = s->queueY[s->queueCount - 1];
     }
 
-    if (dx == lastX && dy == lastY)       // 同方向
+    if (dx == lastX && dy == lastY)       // same direction
         return;
-    if (dx == -lastX && dy == -lastY)     // 掉头
+    if (dx == -lastX && dy == -lastY)     // U-turn
         return;
-    if (s->queueCount >= 2)               // 排满了
+    if (s->queueCount >= 2)               // queue is full
         return;
 
     s->queueX[s->queueCount] = dx;
@@ -85,19 +88,19 @@ void setDirection(Game *g, int dx, int dy)
     s->queueCount++;
 }
 
-// ★ 走下一步之前：从排队里拿出一个方向来用
+// before the next step: take one direction from the queue
 void takeQueuedDirection(Snake *s)
 {
     if (s->queueCount == 0)
         return;
     s->dirX = s->queueX[0];
     s->dirY = s->queueY[0];
-    s->queueX[0] = s->queueX[1];          // 后面的往前移
+    s->queueX[0] = s->queueX[1];          // shift the rest forward
     s->queueY[0] = s->queueY[1];
     s->queueCount--;
 }
 
-// 读 W/A/S/D
+// read W/A/S/D
 void handleInput(Game *g)
 {
     if (IsKeyPressed(KEY_W)) setDirection(g, 0, -1);

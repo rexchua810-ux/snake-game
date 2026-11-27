@@ -1,57 +1,60 @@
-// assets.c — 素材：用代码做出音效、读取和释放图片
+// assets.c — assets: sound effects made in code, loading and freeing images
+// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
+//   The author reviewed the code, tested it in the game, and can explain how it works.
+//   See "Use of Generative AI" in README.md for details.
 
 #include <stdlib.h>
 #include <math.h>     // powf、fabsf
 #include "game.h"
 
-// ================= 音效 =================
+// ================= Sound effects =================
 
-// ★ 用程序“算”出一个音效：频率从 startFreq 慢慢变到 endFreq，长度 duration 秒
-//   频率 = 每秒震动几次，越高声音越尖
+// "calculate" a sound effect in code: the frequency slides from startFreq to endFreq over duration seconds
+//   frequency = vibrations per second; higher = higher pitch
 Sound makeSound(float startFreq, float endFreq, float duration)
 {
-    int sampleRate = 44100;                      // 每秒 44100 个点（CD 音质）
-    int count = (int)(sampleRate * duration);    // 总共要几个点
+    int sampleRate = 44100;                      // 44100 samples per second (CD quality)
+    int count = (int)(sampleRate * duration);    // total number of samples
     short *samples = malloc(count * sizeof(short));
 
-    float phase = 0;                             // 现在在一次震动的哪个位置（0 ~ 1）
+    float phase = 0;                             // position inside one vibration (0 ~ 1)
     for (int i = 0; i < count; i++)
     {
-        float progress = (float)i / count;       // 进度 0 → 1
+        float progress = (float)i / count;       // progress 0 → 1
         float freq = startFreq + (endFreq - startFreq) * progress;
         phase += freq / sampleRate;
         if (phase >= 1)
             phase -= 1;
 
-        float volume = 0.3f * (1 - progress);    // 越后面越小声（淡出）
+        float volume = 0.3f * (1 - progress);    // quieter towards the end (fade out)
 
-        // 方波：前半次震动往上推、后半次往下拉，听起来像复古游戏机
+        // square wave: push up for the first half of each vibration, pull down for the second half, sounds like a retro console
         if (phase < 0.5f)
             samples[i] = (short)(volume * 32767);
         else
             samples[i] = (short)(-volume * 32767);
     }
 
-    Wave wave = { count, sampleRate, 16, 1, samples };  // 点数、每秒几点、16 位、单声道、资料
-    Sound sound = LoadSoundFromWave(wave);              // Raylib 会复制一份
-    free(samples);                                      // 所以自己这份可以释放了
+    Wave wave = { count, sampleRate, 16, 1, samples };  // samples, sample rate, 16-bit, mono, data
+    Sound sound = LoadSoundFromWave(wave);              // Raylib makes its own copy
+    free(samples);                                      // so our copy can be freed
     return sound;
 }
 
-// ★ 一次做好所有音效
+// create all sound effects at once
 void loadSounds(Sounds *s)
 {
-    s->eat     = makeSound(600, 900, 0.08f);   // 短短的“哔”往上
-    s->booster = makeSound(400, 1200, 0.25f);  // 往上滑
-    s->crash   = makeSound(300, 60, 0.4f);     // 往下掉
+    s->eat     = makeSound(600, 900, 0.08f);   // short rising "beep"
+    s->booster = makeSound(400, 1200, 0.25f);  // slide up
+    s->crash   = makeSound(300, 60, 0.4f);     // drop down
     s->levelUp = makeSound(500, 1000, 0.35f);
     s->win     = makeSound(400, 1600, 0.8f);
-    s->golden  = makeSound(800, 1600, 0.2f);   // ★ 金苹果：比较高、比较亮
-    s->music   = makeMusic();                  // ★ 背景音乐
+    s->golden  = makeSound(800, 1600, 0.2f);   // golden apple: higher and brighter
+    s->music   = makeMusic();                  // background music
     SetSoundVolume(s->music, MUSIC_VOLUME);
 }
 
-// ★ 释放所有音效
+// free all sound effects
 void unloadSounds(Sounds *s)
 {
     UnloadSound(s->eat);
@@ -63,43 +66,43 @@ void unloadSounds(Sounds *s)
     UnloadSound(s->music);
 }
 
-// ★ 音符的频率。semitone = 离 A（440Hz）几个半音；每高 12 个半音（一个八度）频率就乘 2
+// frequency of a note. semitone = semitones away from A (440 Hz); 12 semitones higher (one octave) doubles the frequency
 float noteFreq(int semitone)
 {
     return 440.0f * powf(2.0f, semitone / 12.0f);
 }
 
-// ★ 用代码“作曲”：一段 8 秒、可以一直循环的复古电子音乐
-//   和弦：Am → F → C → G（每个和弦一小节），主旋律是快速的琶音，下面配一条低音
+// "compose" in code: 8 seconds of looping retro electronic music
+//   chords: Am → F → C → G (one bar each), the lead is a fast arpeggio, with a bass line below
 Sound makeMusic(void)
 {
     int sampleRate = 44100;
-    float stepTime = 0.125f;                    // 每一格（16 分音符）0.125 秒 = 每分钟 120 拍
-    int steps = 64;                             // 4 小节 × 16 格 = 8 秒
+    float stepTime = 0.125f;                    // each step (16th note) is 0.125 s = 120 beats per minute
+    int steps = 64;                             // 4 bars × 16 steps = 8 seconds
     int stepSamples = (int)(sampleRate * stepTime);
     int count = steps * stepSamples;
     short *samples = malloc(count * sizeof(short));
 
-    // 四个和弦的根音（离 A 几个半音）和三度音（3 = 小调、4 = 大调）
+    // root of each chord (semitones from A) and its third (3 = minor, 4 = major)
     int chordRoot[4]  = { 0, -4, 3, -2 };       // A、F、C、G
-    int chordThird[4] = { 3, 4, 4, 4 };         // Am 是小和弦，其他是大和弦
-    int arp[4] = { 0, 1, 2, 1 };                // 琶音顺序：根音、三度、五度、三度
+    int chordThird[4] = { 3, 4, 4, 4 };         // Am is minor, the others are major
+    int arp[4] = { 0, 1, 2, 1 };                // arpeggio order: root, third, fifth, third
 
     float leadPhase = 0, bassPhase = 0;
     for (int step = 0; step < steps; step++)
     {
-        int bar = step / 16;                    // 第几小节
+        int bar = step / 16;                    // which bar
         int root = chordRoot[bar];
-        int notes[3] = { root, root + chordThird[bar], root + 7 };   // 和弦的三个音
+        int notes[3] = { root, root + chordThird[bar], root + 7 };   // the three notes of the chord
 
         float lead = noteFreq(notes[arp[step % 4]]);
         if (step % 8 >= 4)
-            lead *= 2;                          // 后半拍高一个八度，比较有变化
-        float bass = noteFreq(root - 24);       // 低音：低两个八度
+            lead *= 2;                          // one octave higher on the second half of the beat, for more variety
+        float bass = noteFreq(root - 24);       // bass: two octaves lower
 
         for (int i = 0; i < stepSamples; i++)
         {
-            float t = (float)i / stepSamples;   // 这个音符进行到哪里（0 → 1）
+            float t = (float)i / stepSamples;   // progress through this note (0 → 1)
 
             leadPhase += lead / sampleRate;
             if (leadPhase >= 1)
@@ -108,13 +111,13 @@ Sound makeMusic(void)
             if (bassPhase >= 1)
                 bassPhase -= 1;
 
-            // 主旋律：窄方波（只有 25% 的时间往上），每个音很快淡出，听起来像“哔哔哔”
+            // lead: narrow square wave (up only 25% of the time), each note fades quickly, sounds like "beep beep beep"
             float leadWave = -1;
             if (leadPhase < 0.25f)
                 leadWave = 1;
             float leadVolume = 0.12f * (1 - t);
 
-            // 低音：三角波，声音比较圆、比较厚
+            // bass: triangle wave, rounder and fuller
             float bassWave = 4 * fabsf(bassPhase - 0.5f) - 1;
             float bassVolume = 0.18f;
 
@@ -129,9 +132,9 @@ Sound makeMusic(void)
     return music;
 }
 
-// ================= 图片 =================
+// ================= Images =================
 
-// ★ 读一张图片；文件不存在也没关系，画的时候会用色块代替
+// load one image; a missing file is fine, a colored block is drawn instead
 Texture2D loadImage(const char *path)
 {
     Texture2D texture = { 0 };
@@ -140,21 +143,21 @@ Texture2D loadImage(const char *path)
         texture = LoadTexture(path);
         if (texture.width > 64)
         {
-            // 大图（例如 512x512）要缩小很多：先做好几个缩小版本，缩小时才不会出现锯齿
+            // large images (e.g. 512x512) are shrunk a lot: build smaller versions (mipmaps) first to avoid jagged edges
             GenTextureMipmaps(&texture);
             SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
         }
         else
         {
-            SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // 小像素图放大时保持锐利
+            SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // keep small pixel art sharp when enlarged
         }
-        // ★ 图片边缘不要“重复”：不然画到左边时会取到右边的像素，出现一条细细的线
+        // don't "repeat" the image edges: otherwise the left edge picks up pixels from the right and a thin line appears
         SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
     }
     return texture;
 }
 
-// ★ 读进所有图片（都放在 assets 文件夹）
+// load all images (all in the assets folder)
 void loadTextures(Textures *t)
 {
     t->head     = loadImage("assets/head.png");
@@ -168,7 +171,7 @@ void loadTextures(Textures *t)
     t->cover    = loadImage("assets/cover.png");
 }
 
-// ★ 释放所有图片（id 是 0 表示没读到，不用释放）
+// free all images (id 0 = not loaded, nothing to free)
 void unloadTextures(Textures *t)
 {
     if (t->head.id > 0)     UnloadTexture(t->head);

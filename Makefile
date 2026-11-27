@@ -1,7 +1,7 @@
-# Makefile — 编译用
-#   make       编译（只会重新编译有改过的部分）
-#   make run   编译并执行
-#   make clean 删除编译出来的文件
+# Makefile — for compiling
+#   make       compile (only recompiles what changed)
+#   make run   compile and run
+#   make clean delete the compiled files
 
 CC      = clang
 CFLAGS  = -Wall -Wextra $(shell pkg-config --cflags raylib)

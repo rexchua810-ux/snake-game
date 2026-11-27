@@ -1,189 +1,192 @@
-// game.h — 所有文件共用的东西：常数、配色、struct，以及每个 .c 文件提供的函数
-//   每个 .c 文件开头都会 #include "game.h"，就知道彼此有哪些函数可以叫
+// game.h — shared by all files: constants, colors, structs, and the functions each .c file provides
+// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
+//   The author reviewed the code, tested it in the game, and can explain how it works.
+//   See "Use of Generative AI" in README.md for details.
+//   every .c file starts with #include "game.h", so it knows which functions the other files offer
 
-#ifndef GAME_H      // 防止同一个 .c 文件不小心 include 两次
+#ifndef GAME_H      // prevents the same .c file from including this header twice
 #define GAME_H
 
 #include "raylib.h"
 
-// ===== 画面大小 =====
+// ===== Screen size =====
 #define SCREEN_W 600        // screen of the window
-#define HUD_H    60         // 上方显示分数的区域高度
+#define HUD_H    60         // height of the score bar at the top
 #define BOARD    600        // the limit domain of the map 600x600
 #define SCREEN_H (HUD_H + BOARD)
-#define BOARD_MARGIN 10     // ★ 地图四周留几像素给外框
+#define BOARD_MARGIN 10     // pixels left around the map for the border
 
-// ===== 游戏数值（录视频“现场改数值”可以改这些） =====
-#define MOVE_TIME     0.15f // 每 0.15 秒走一格（越小越快）
-#define WIN_SCORE     20    // 吃到 20 个食物就赢
-#define OBSTACLE_RATE 50    // 大约每 50 格放 1 个障碍物（越大越少）
-#define BOOST_TIME    5.0f  // 加速持续几秒
-#define SHRINK_AMOUNT 3     // 缩短几节
-#define MIN_LENGTH    3     // 蛇最短几节
-#define START_LIVES   1     // 一开始有几条命
-#define MESSAGE_TIME  1.5f  // 提示文字显示几秒
-#define SNAKE_SCALE   1.5f  // ★ 蛇的图片画成格子的几倍大（越大蛇越粗）
-#define HEAD_SCALE    1.0f  // ★ 蛇头画成格子的几倍大（头比较宽，所以小一点才不会像一颗球）
+// ===== Game values (good ones to change live in the walkthrough video) =====
+#define MOVE_TIME     0.15f // seconds per step (smaller = faster)
+#define WIN_SCORE     20    // eat 20 food items to win
+#define OBSTACLE_RATE 50    // about 1 obstacle per 50 cells (bigger = fewer)
+#define BOOST_TIME    5.0f  // how many seconds the speed boost lasts
+#define SHRINK_AMOUNT 3     // how many segments the size reducer removes
+#define MIN_LENGTH    3     // shortest possible snake length
+#define START_LIVES   1     // number of lives at the start
+#define MESSAGE_TIME  1.5f  // how many seconds a message stays on screen
+#define SNAKE_SCALE   1.5f  // snake body is drawn this many times the cell size (bigger = thicker)
+#define HEAD_SCALE    1.0f  // snake head is drawn this many times the cell size (kept smaller so it doesn't look like a ball)
 
-// ★ 关卡
-#define FOODS_PER_LEVEL 5      // 每吃 5 个食物升一级
-#define LEVEL_SPEEDUP   0.015f // 每升一级，每步少等 0.015 秒（变快）
-#define MIN_MOVE_TIME   0.06f  // 最快不超过这个速度
-#define LEVEL_OBSTACLES 2      // 每升一级多 2 个障碍物
+// Levels
+#define FOODS_PER_LEVEL 5      // level up every 5 food items
+#define LEVEL_SPEEDUP   0.015f // each level waits 0.015 s less per step (faster)
+#define MIN_MOVE_TIME   0.06f  // fastest allowed speed
+#define LEVEL_OBSTACLES 2      // 2 more obstacles every level
 
-// ★ 金苹果
-#define GOLDEN_CHANCE   4      // 每吃一个普通苹果，有 1/4 的机会出现金苹果
-#define GOLDEN_TIME     6.0f   // 金苹果几秒后消失
-#define GOLDEN_POINTS   3      // 金苹果值几分
+// Golden apple
+#define GOLDEN_CHANCE   4      // after each normal apple there is a 1 in 4 chance a golden apple appears
+#define GOLDEN_TIME     6.0f   // seconds before the golden apple disappears
+#define GOLDEN_POINTS   3      // points for a golden apple
 
-// ★ 手感特效
-#define INVINCIBLE_TIME 2.0f   // 复活后无敌几秒（只对障碍物有效）
-#define SHAKE_TIME      0.3f   // 撞到时画面震动几秒
-#define SHAKE_POWER     8      // 震动最大几像素
-#define FLASH_TIME      0.3f   // 红色闪光几秒
-#define MAX_PARTICLES   64     // 画面上最多几颗粒子
-#define BURST_COUNT     16     // 吃一次炸出几颗
-#define PARTICLE_LIFE   0.6f   // 粒子活几秒
-#define MAX_POPUPS      8      // 画面上最多几个飘字（+1、+3）
-#define POPUP_LIFE      0.8f   // 飘字显示几秒
-#define MUSIC_VOLUME    0.35f  // ★ 背景音乐音量（0 ~ 1）
-#define SAFE_DISTANCE   4      // 新障碍物至少离蛇头这么远，避免突然出现在面前
+// Game-feel effects
+#define INVINCIBLE_TIME 2.0f   // seconds of invincibility (against obstacles) after losing a life
+#define SHAKE_TIME      0.3f   // seconds the screen shakes after a crash
+#define SHAKE_POWER     8      // maximum shake in pixels
+#define FLASH_TIME      0.3f   // seconds of the red flash
+#define MAX_PARTICLES   64     // maximum particles on screen
+#define BURST_COUNT     16     // particles per burst
+#define PARTICLE_LIFE   0.6f   // seconds a particle lives
+#define MAX_POPUPS      8      // maximum floating texts on screen (+1, +3)
+#define POPUP_LIFE      0.8f   // seconds a floating text lives
+#define MUSIC_VOLUME    0.35f  // background music volume (0 ~ 1)
+#define SAFE_DISTANCE   4      // new obstacles must be at least this far from the head, so they never appear right in front of it
 
-// ===== 地图大小的范围和默认值 =====
+// ===== Map size range and defaults =====
 #define MIN_SIZE     5
 #define MAX_SIZE     30
 #define DEFAULT_W    15
 #define DEFAULT_H    12
 
-// ===== ★ 赛博朋克配色 =====
-#define BG_COLOR     (Color){ 12, 6, 28, 255 }     // 深紫黑背景
+// ===== Cyberpunk colors =====
+#define BG_COLOR     (Color){ 12, 6, 28, 255 }     // dark purple-black background
 #define NEON_PINK    (Color){ 255, 45, 200, 255 }
 #define NEON_CYAN    (Color){ 0, 240, 255, 255 }
-#define NEON_GREEN   (Color){ 0, 255, 170, 255 }   // ★ 青绿色：地图外框（跟紫色背景是对比色）
+#define NEON_GREEN   (Color){ 0, 255, 170, 255 }   // aqua green: map border (contrasts with the purple background)
 #define NEON_PURPLE  (Color){ 170, 80, 255, 255 }
 #define NEON_YELLOW  (Color){ 255, 230, 0, 255 }
 #define NEON_RED     (Color){ 255, 50, 80, 255 }
 #define NEON_ORANGE  (Color){ 255, 140, 0, 255 }
-#define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
+#define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // less important text
 
-// ===== ★ 金属地板配色 =====
-#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }    // 钢板底色（★ 改成深绿色，紫色的蛇比较明显）
-#define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // 钢板左上亮边
-#define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // 钢板右下暗边
-#define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // 螺丝钉
-#define GOLD_COLOR   (Color){ 255, 200, 40, 255 }  // ★ 金苹果的光
+// ===== Metal floor colors =====
+#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }    // plate base color (dark green, so the purple snake stands out)
+#define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // plate highlight (top-left edge)
+#define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // plate shadow (bottom-right edge)
+#define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // rivets
+#define GOLD_COLOR   (Color){ 255, 200, 40, 255 }  // golden apple glow
 
-// 地图格子里的东西
+// what a map cell can contain
 #define EMPTY    0
 #define FOOD     1
 #define OBSTACLE 2
 #define BOOSTER  3
-#define GOLDEN   4          // ★ 金苹果
+#define GOLDEN   4          // Golden apple
 
-// 游戏状态
+// game states
 #define PLAYING 0
 #define LOSE    1
 #define WIN     2
-#define MENU    3           // ★ 开始画面
+#define MENU    3           // start menu
 
-// ★ 游戏模式
-#define CLASSIC  0          // 经典模式：撞墙会失去一条命
-#define NO_WALLS 1          // 无边界模式：从对面出来
+// game modes
+#define CLASSIC  0          // Classic: hitting the wall costs a life
+#define NO_WALLS 1          // No Walls: come out on the opposite side
 
-// 道具种类
+// booster types
 #define SPEED_BOOST  0
 #define SIZE_REDUCER 1
 #define EXTRA_LIFE   2
 
-// 蛇的资料
+// snake data
 typedef struct {
-    int *x;          // 每一节的 x，x[0] 是头
-    int *y;          // 每一节的 y
-    int length;      // 现在有几节
-    int dirX, dirY;  // 移动方向（上一步真正走的方向）
+    int *x;          // x of every segment, x[0] is the head
+    int *y;          // y of every segment
+    int length;      // current number of segments
+    int dirX, dirY;  // moving direction (the direction of the last real step)
 
-    // ★ 按键排队：一步之内按了两个键（例如快速 W 再 A），两个都会照顺序用到，不会被吃掉
+    // key queue: if two keys are pressed within one step (e.g. W then A quickly), both are used in order instead of being lost
     int queueX[2], queueY[2];
     int queueCount;
 
-    // ★ 平滑移动要用的资料
-    int prevTailX, prevTailY;     // 尾巴上一步在哪一格（画的时候从这里滑过去）
-    int tailDirX, tailDirY;       // 尾巴这一步往哪个方向滑
-    int oldTailDirX, oldTailDirY; // 尾巴上一步的方向（转弯时用来慢慢转过去）
+    // data for smooth movement
+    int prevTailX, prevTailY;     // which cell the tail was in last step (it slides from there when drawn)
+    int tailDirX, tailDirY;       // direction the tail slides this step
+    int oldTailDirX, oldTailDirY; // tail direction of the previous step (used to rotate smoothly at corners)
 } Snake;
 
-// ★ 一颗粒子（吃到东西时炸开的小方块）
+// one particle (the small squares that burst out when something is eaten)
 typedef struct {
-    float x, y;          // 位置（像素）
-    float vx, vy;        // 速度（每秒移动几像素）
-    float life;          // 还剩几秒；0 = 没在用
+    float x, y;          // position (pixels)
+    float vx, vy;        // velocity (pixels per second)
+    float life;          // seconds left; 0 = not in use
     Color color;
 } Particle;
 
-// ★ 飘字（例如吃到苹果时往上飘的 "+1"）
+// floating text (e.g. the "+1" that rises when an apple is eaten)
 typedef struct {
     float x, y;
-    float life;          // 还剩几秒；0 = 没在用
+    float life;          // seconds left; 0 = not in use
     char text[8];
     Color color;
 } Popup;
 
-// ★ 所有音效
+// all sound effects
 typedef struct {
-    Sound eat;       // 吃到食物
-    Sound booster;   // 吃到道具
-    Sound crash;     // 撞到东西
-    Sound levelUp;   // 升级
-    Sound win;       // 赢了
-    Sound golden;    // ★ 吃到金苹果
-    Sound music;     // ★ 背景音乐（8 秒，一直循环）
+    Sound eat;       // eat food
+    Sound booster;   // eat a booster
+    Sound crash;     // crash
+    Sound levelUp;   // level up
+    Sound win;       // win
+    Sound golden;    // eat a golden apple
+    Sound music;     // background music (8 seconds, looped)
 } Sounds;
 
-// ★ 所有图片（你画的像素图）
+// all images (pixel art sprites)
 typedef struct {
-    Texture2D head;      // 蛇头（画成往右看）
-    Texture2D body;      // 蛇身（直的，画成横的：左右两边接起来）
-    Texture2D corner;    // ★ 蛇身转角（画成接右边和下边）
-    Texture2D tail;      // 蛇尾（画成往右走：尖端在左边）
-    Texture2D apple;     // 苹果
-    Texture2D booster;   // 道具
-    Texture2D obstacle;  // 障碍物
-    Texture2D floor;     // ★ 地板（可以不画，没有的话程序会自己画金属钢板）
-    Texture2D cover;     // ★ 开始画面的封面（600x660，中间的面板留空，文字由程序画上去）
+    Texture2D head;      // snake head (drawn facing right)
+    Texture2D body;      // snake body (straight piece drawn horizontally: connects left and right)
+    Texture2D corner;    // snake body corner (drawn connecting right and bottom)
+    Texture2D tail;      // snake tail (drawn moving right: tip on the left)
+    Texture2D apple;     // apple
+    Texture2D booster;   // booster
+    Texture2D obstacle;  // obstacle
+    Texture2D floor;     // floor (optional; if missing, the code draws metal plates)
+    Texture2D cover;     // start menu cover (600x660, middle panel left empty, the code writes the text)
 } Textures;
 
-// 整个游戏的资料都放在这里
+// all game data lives here
 typedef struct {
-    int **map;           // 地图（malloc 来的二维数组），还没开始时是 NULL
-    int width, height;   // 地图大小（格数）
-    int cell;            // 每一格画多大（像素）
-    int offsetX, offsetY;// ★ 地图画在窗口的哪里（让地图置中）
-    int mode;            // ★ CLASSIC / NO_WALLS
+    int **map;           // map (2D array from malloc), NULL before the game starts
+    int width, height;   // map size (in cells)
+    int cell;            // size of one cell (pixels)
+    int offsetX, offsetY;// where the map is drawn in the window (centered)
+    int mode;            // CLASSIC / NO_WALLS
     Snake snake;
     int score;
     int state;           // PLAYING / LOSE / WIN / MENU
     float timer;
     int lives;
     float speedTimer;
-    char message[32];    // ★ 改成字符数组：把文字复制进来存着
+    char message[32];    // char array: the message text is copied in here
     float messageTimer;
-    int level;           // ★ 现在第几关
-    int paused;          // 1 = 暂停中
-    Sounds sounds;       // 音效
-    Textures textures;   // ★ 图片
-    int menuSelected;    // ★ 开始画面目前选到第几项（0 宽、1 高、2 模式）
-    const char *menuError; // ★ 开始画面的错误提示
+    int level;           // current level
+    int paused;          // 1 = paused
+    Sounds sounds;       // sound effects
+    Textures textures;   // images
+    int menuSelected;    // selected menu row (0 width, 1 height, 2 mode)
+    const char *menuError; // error text on the start menu
 
-    float goldenTimer;       // ★ 金苹果还剩几秒（0 = 地图上没有金苹果）
-    float invincibleTimer;   // ★ 无敌还剩几秒
-    float shakeTimer;        // ★ 画面震动还剩几秒
-    float flashTimer;        // ★ 红色闪光还剩几秒
-    Particle particles[MAX_PARTICLES];   // ★ 固定大小的数组，装在 Game 里（不是全局变量）
+    float goldenTimer;       // seconds left for the golden apple (0 = no golden apple on the map)
+    float invincibleTimer;   // seconds of invincibility left
+    float shakeTimer;        // seconds of screen shake left
+    float flashTimer;        // seconds of red flash left
+    Particle particles[MAX_PARTICLES];   // fixed-size array stored inside Game (not a global variable)
     Popup popups[MAX_POPUPS];
-    int musicOn;             // ★ 1 = 播放背景音乐
+    int musicOn;             // 1 = background music on
 } Game;
 
-// ================= map.c：地图：建立/释放地图、在随机空格放东西、方向计算 =================
+// ================= map.c: create/free the map, place items on random empty cells, directions =================
 int **createMap(int width, int height);
 void freeMap(int **map, int height);
 int isOnSnake(Snake *s, int x, int y);
@@ -192,7 +195,7 @@ void segmentDir(Game *g, int i, int j, int *dx, int *dy);
 int isValidSpot(Game *g, int x, int y, int type);
 void placeItem(Game *g, int type);
 
-// ================= game.c：游戏规则：开始与结束、道具与生命、关卡、蛇每走一步要检查的事 =================
+// ================= game.c: game rules: start/end, boosters and lives, levels, what happens on every step =================
 void showMessage(Game *g, const char *text);
 void resetSnake(Game *g);
 void resetGame(Game *g);
@@ -209,14 +212,14 @@ void checkLevelUp(Game *g);
 void updatePlaying(Game *g);
 int updateGame(Game *g);
 
-// ================= input.c：键盘输入：开始画面的选项、W/A/S/D 控制蛇 =================
+// ================= input.c: keyboard input: start menu options, W/A/S/D snake control =================
 int editNumber(int value);
 void updateMenu(Game *g);
 void setDirection(Game *g, int dx, int dy);
 void takeQueuedDirection(Snake *s);
 void handleInput(Game *g);
 
-// ================= assets.c：素材：用代码做出音效、读取和释放图片 =================
+// ================= assets.c: assets: sound effects made in code, loading and freeing images =================
 Sound makeSound(float startFreq, float endFreq, float duration);
 void loadSounds(Sounds *s);
 void unloadSounds(Sounds *s);
@@ -226,7 +229,7 @@ Texture2D loadImage(const char *path);
 void loadTextures(Textures *t);
 void unloadTextures(Textures *t);
 
-// ================= draw.c：画面：所有画图的函数，以及打开窗口 =================
+// ================= draw.c: drawing functions and opening the window =================
 void drawCenterText(const char *text, int y, int size, Color color);
 void drawNeonText(const char *text, int y, int size, Color color);
 float directionToAngle(int dx, int dy);
@@ -251,7 +254,7 @@ void drawGame(Game *g, RenderTexture2D canvas);
 void openWindow(void);
 void drawGoldenApple(Game *g, int x, int y);
 
-// ================= effects.c：特效：粒子、飘字、震动、闪光、背景音乐 =================
+// ================= effects.c: effects: particles, floating text, shake, flash, background music =================
 void spawnBurst(Game *g, int cellX, int cellY, Color color);
 void addPopup(Game *g, int cellX, int cellY, const char *text, Color color);
 void startCrashEffect(Game *g);

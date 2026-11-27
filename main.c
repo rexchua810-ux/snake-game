@@ -1,4 +1,7 @@
-// main.c — 程序的起点：初始化 → 游戏循环 → 释放资源
+// main.c — program entry: initialize → game loop → clean up
+// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
+//   The author reviewed the code, tested it in the game, and can explain how it works.
+//   See "Use of Generative AI" in README.md for details.
 
 #include <stdlib.h>
 #include <time.h>
@@ -12,12 +15,12 @@ int main(void)
     initGame(&game);
 
     openWindow();
-    RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // 600x660 的画布
-    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // 缩放时比较平滑
+    RenderTexture2D canvas = LoadRenderTexture(SCREEN_W, SCREEN_H);  // 600x660 canvas
+    SetTextureFilter(canvas.texture, TEXTURE_FILTER_BILINEAR);       // smoother when scaled
 
-    InitAudioDevice();                // 打开声音
-    loadSounds(&game.sounds);         // 做好音效
-    loadTextures(&game.textures);     // 读进图片
+    InitAudioDevice();                // open the audio device
+    loadSounds(&game.sounds);         // create the sound effects
+    loadTextures(&game.textures);     // load the images
 
     int quit = 0;
     while (!WindowShouldClose() && !quit)
@@ -26,10 +29,10 @@ int main(void)
         drawGame(&game, canvas);
     }
 
-    unloadTextures(&game.textures);   // ★ 释放图片
-    unloadSounds(&game.sounds);       // 释放音效
-    CloseAudioDevice();               // ★ 关闭声音
-    UnloadRenderTexture(canvas);      // 释放画布
+    unloadTextures(&game.textures);   // free the images
+    unloadSounds(&game.sounds);       // free the sound effects
+    CloseAudioDevice();               // close the audio device
+    UnloadRenderTexture(canvas);      // free the canvas
     CloseWindow();
     freeGame(&game);
     return 0;
