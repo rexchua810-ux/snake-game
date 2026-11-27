@@ -50,10 +50,10 @@
 #define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // 不重要的文字
 
 // ===== ★ 金属地板配色 =====
-#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }    // 钢板底色（★ 改成深绿色，紫色的蛇比较明显）
-#define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // 钢板左上亮边
-#define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // 钢板右下暗边
-#define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // 螺丝钉
+#define PLATE_COLOR  (Color){ 34, 22, 54, 255 }    // 钢板底色（★ 偏紫色）
+#define PLATE_LIGHT  (Color){ 58, 40, 86, 255 }    // 钢板左上亮边
+#define PLATE_DARK   (Color){ 16, 10, 28, 255 }    // 钢板右下暗边
+#define RIVET_COLOR  (Color){ 88, 66, 122, 255 }   // 螺丝钉
 
 // 地图格子里的东西
 #define EMPTY    0

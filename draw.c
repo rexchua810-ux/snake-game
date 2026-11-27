@@ -233,7 +233,7 @@ void drawEnergyGrid(Game *g)
 {
     // sinf 的结果在 -1 ~ 1 之间，所以透明度在 0.2 ~ 0.5 之间来回变化
     float glow = 0.35f + 0.15f * sinf(GetTime() * 2);
-    Color line = Fade(NEON_GREEN, glow);   // ★ 绿色地板配绿色的能量线
+    Color line = Fade(NEON_PURPLE, glow);
 
     int right  = g->offsetX + g->width * g->cell;
     int bottom = g->offsetY + g->height * g->cell;
