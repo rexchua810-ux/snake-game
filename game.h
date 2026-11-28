@@ -117,8 +117,6 @@ typedef struct {
     // which cell the tail was in last step (it slides from there when drawn)
     int prevTailX, prevTailY;
     int tailDirX, tailDirY;       // direction the tail slides this step
-    // tail direction of the previous step (used to rotate smoothly at corners)
-    int oldTailDirX, oldTailDirY;
 } Snake;
 
 // one particle (the small squares that burst out when something is eaten)

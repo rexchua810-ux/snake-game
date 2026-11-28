@@ -185,10 +185,12 @@ static void drawSnake(Game *g)
         drawBodyPiece(g, s->x[last], s->y[last], ax, ay, -s->tailDirX, -s->tailDirY, bodyColor);
     }
 
-    // 2. tail: slides in from the previous cell; turns smoothly at corners (within the first half
-    //   of the step)
-    float tailAngle = turnAngle(directionToAngle(s->oldTailDirX, s->oldTailDirY),
-                                directionToAngle(s->tailDirX, s->tailDirY), p * 2);
+    // 2. tail: slides in from the previous cell; at a corner it turns in the second half of the
+    //   step, so it already faces the next segment when it leaves the corner cell
+    int nx, ny;
+    segmentDir(g, last, last - 1, &nx, &ny);     // direction from the tail cell to the next segment
+    float tailAngle = turnAngle(directionToAngle(s->tailDirX, s->tailDirY),
+                                directionToAngle(nx, ny), p * 2 - 1);
     if (tailMoving)
         drawSliding(g, t->tail, s->prevTailX, s->prevTailY, s->tailDirX, s->tailDirY, p,
                     tailAngle, SNAKE_SCALE, NEON_PURPLE);

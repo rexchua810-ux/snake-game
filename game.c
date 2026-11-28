@@ -30,8 +30,6 @@ static void resetSnake(Game *g)
     g->snake.prevTailY = g->snake.y[2];
     g->snake.tailDirX = 1;
     g->snake.tailDirY = 0;
-    g->snake.oldTailDirX = 1;
-    g->snake.oldTailDirY = 0;
     g->timer = 0;
 }
 
@@ -140,8 +138,6 @@ static void applyBooster(Game *g)
         g->snake.prevTailY = g->snake.y[g->snake.length - 1];
         segmentDir(g, g->snake.length - 1, g->snake.length - 2,
                    &g->snake.tailDirX, &g->snake.tailDirY);
-        g->snake.oldTailDirX = g->snake.tailDirX;
-        g->snake.oldTailDirY = g->snake.tailDirY;
         showMessage(g, "Shrink!");
     }
     else  // EXTRA_LIFE
@@ -307,8 +303,6 @@ static void moveSnake(Game *g, int x, int y, int grow)
     s->y[0] = y;
 
     // tail: remember which cell it slides from and to (the tail stays still after eating)
-    s->oldTailDirX = s->tailDirX;
-    s->oldTailDirY = s->tailDirY;
     s->prevTailX = oldTailX;
     s->prevTailY = oldTailY;
     int last = s->length - 1;
