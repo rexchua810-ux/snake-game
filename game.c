@@ -10,14 +10,14 @@
 // ================= Starting and ending a game =================
 
 // show a message (e.g. "Speed Up!")
-void showMessage(Game *g, const char *text)
+static void showMessage(Game *g, const char *text)
 {
     snprintf(g->message, sizeof(g->message), "%s", text);  // copy the text into message
     g->messageTimer = MESSAGE_TIME;
 }
 
 // put the snake back at the start (length 3, moving right)
-void resetSnake(Game *g)
+static void resetSnake(Game *g)
 {
     g->snake.length = 3;
     g->snake.dirX = 1;
@@ -38,7 +38,7 @@ void resetSnake(Game *g)
 }
 
 // start a new round (same map size)
-void resetGame(Game *g)
+static void resetGame(Game *g)
 {
     for (int y = 0; y < g->height; y++)
         for (int x = 0; x < g->width; x++)
@@ -121,7 +121,7 @@ void initGame(Game *g)
 // ================= Boosters and lives =================
 
 // booster eaten: rand() decides which type, then apply its effect
-void applyBooster(Game *g)
+static void applyBooster(Game *g)
 {
     int type = rand() % 3;
 
@@ -151,7 +151,7 @@ void applyBooster(Game *g)
 }
 
 // crash: lose a life. With lives left, restart from the start position; with none left, the game is lost
-void loseLife(Game *g)
+static void loseLife(Game *g)
 {
     PlaySound(g->sounds.crash);
     spawnBurst(g, g->snake.x[0], g->snake.y[0], NEON_PINK);   // burst at the head's position
@@ -171,7 +171,7 @@ void loseLife(Game *g)
 }
 
 // level up: add obstacles and show "Level 2!"
-void levelUp(Game *g)
+static void levelUp(Game *g)
 {
     g->level++;
     PlaySound(g->sounds.levelUp);
@@ -184,14 +184,14 @@ void levelUp(Game *g)
 }
 
 // level up when the score is high enough. Uses while: a golden apple adds 3 points and may cross a level boundary
-void checkLevelUp(Game *g)
+static void checkLevelUp(Game *g)
 {
     while (g->level < g->score / FOODS_PER_LEVEL + 1)
         levelUp(g);
 }
 
 // remove the golden apple from the map (time is up)
-void removeGolden(Game *g)
+static void removeGolden(Game *g)
 {
     for (int y = 0; y < g->height; y++)
         for (int x = 0; x < g->width; x++)
@@ -214,7 +214,7 @@ float getMoveTime(Game *g)
 // ================= Playing =================
 
 // where the head goes next. Returns 0 if the snake leaves the map in Classic mode
-int nextHeadPosition(Game *g, int *x, int *y)
+static int nextHeadPosition(Game *g, int *x, int *y)
 {
     Snake *s = &g->snake;
     *x = s->x[0] + s->dirX;
@@ -233,7 +233,7 @@ int nextHeadPosition(Game *g, int *x, int *y)
 
 // does moving the head to (x, y) crash into an obstacle or the snake's own body?
 //   grow = 1 if the snake eats an apple this step (then the tail does not move away)
-int isCrash(Game *g, int x, int y, int grow)
+static int isCrash(Game *g, int x, int y, int grow)
 {
     Snake *s = &g->snake;
 
@@ -252,7 +252,7 @@ int isCrash(Game *g, int x, int y, int grow)
 }
 
 // the snake eats the item on (x, y): remove it from the map, add points, play a sound, show effects
-void eatItem(Game *g, int x, int y, int item)
+static void eatItem(Game *g, int x, int y, int item)
 {
     if (item == FOOD)
     {
@@ -281,7 +281,7 @@ void eatItem(Game *g, int x, int y, int item)
 }
 
 // move every segment one cell forward and put the head on (x, y); grow = 1 adds one segment
-void moveSnake(Game *g, int x, int y, int grow)
+static void moveSnake(Game *g, int x, int y, int grow)
 {
     Snake *s = &g->snake;
 
@@ -313,7 +313,7 @@ void moveSnake(Game *g, int x, int y, int grow)
 }
 
 // after eating (the snake has already moved): check for a win, place new items, level up, apply a booster
-void afterEating(Game *g, int item)
+static void afterEating(Game *g, int item)
 {
     if (item == FOOD || item == GOLDEN)
     {
@@ -344,7 +344,7 @@ void afterEating(Game *g, int item)
 
 // move the snake one step
 //   1. where does the head go?  2. does it crash?  3. eat  4. move  5. what happens after eating
-void stepGame(Game *g)
+static void stepGame(Game *g)
 {
     takeQueuedDirection(&g->snake);             // the turn actually happens here
 
@@ -370,7 +370,7 @@ void stepGame(Game *g)
 }
 
 // everything done each frame while playing
-void updatePlaying(Game *g)
+static void updatePlaying(Game *g)
 {
     // P: pause / resume
     if (IsKeyPressed(KEY_P))

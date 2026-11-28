@@ -26,7 +26,7 @@ void freeMap(int **map, int height)
 }
 
 // return 1 if the snake is on cell (x, y)
-int isOnSnake(Snake *s, int x, int y)
+static int isOnSnake(Snake *s, int x, int y)
 {
     for (int i = 0; i < s->length; i++)
         if (s->x[i] == x && s->y[i] == y)
@@ -54,7 +54,7 @@ void segmentDir(Game *g, int i, int j, int *dx, int *dy)
 }
 
 // check whether this type of item may be placed on (x, y)
-int isValidSpot(Game *g, int x, int y, int type)
+static int isValidSpot(Game *g, int x, int y, int type)
 {
     if (g->map[y][x] != EMPTY || isOnSnake(&g->snake, x, y))
         return 0;

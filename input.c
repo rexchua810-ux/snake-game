@@ -8,7 +8,7 @@
 // ================= Start menu =================
 
 // edit a number: typed digits are appended, Backspace deletes the last digit
-int editNumber(int value)
+static int editNumber(int value)
 {
     int c = GetCharPressed();
     while (c > 0)
@@ -65,7 +65,7 @@ void updateMenu(Game *g)
 
 // direction key pressed: queue it, the snake turns on its next real step
 //   compared with the last queued direction: the same direction is skipped, the opposite one (U-turn) is not allowed
-void setDirection(Game *g, int dx, int dy)
+static void setDirection(Game *g, int dx, int dy)
 {
     Snake *s = &g->snake;
 

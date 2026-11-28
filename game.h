@@ -198,86 +198,40 @@ typedef struct {
     int musicOn;             // 1 = background music on
 } Game;
 
-// ================= map.c: create/free the map, place items on random empty cells, directions =================
+// ===== Functions shared between files =====
+// Only functions used by another file are listed here.
+// Helper functions used inside a single file are marked "static" in that file.
+
+// map.c: the map (created with malloc) and placing items with rand()
 int **createMap(int width, int height);
 void freeMap(int **map, int height);
-int isOnSnake(Snake *s, int x, int y);
+void placeItem(Game *g, int type);
 void neighborDir(int ax, int ay, int bx, int by, int *dx, int *dy);
 void segmentDir(Game *g, int i, int j, int *dx, int *dy);
-int isValidSpot(Game *g, int x, int y, int type);
-void placeItem(Game *g, int type);
 
-// ================= game.c: game rules: start/end, boosters and lives, levels, what happens on every step =================
-void showMessage(Game *g, const char *text);
-void resetSnake(Game *g);
-void resetGame(Game *g);
+// game.c: game rules (starting, every step, boosters, lives, levels)
+void initGame(Game *g);
 void startGame(Game *g);
 void freeGame(Game *g);
-void initGame(Game *g);
-void applyBooster(Game *g);
-void loseLife(Game *g);
-void levelUp(Game *g);
 float getMoveTime(Game *g);
-int nextHeadPosition(Game *g, int *x, int *y);
-int isCrash(Game *g, int x, int y, int grow);
-void eatItem(Game *g, int x, int y, int item);
-void moveSnake(Game *g, int x, int y, int grow);
-void afterEating(Game *g, int item);
-void stepGame(Game *g);
-void removeGolden(Game *g);
-void checkLevelUp(Game *g);
-void updatePlaying(Game *g);
-int updateGame(Game *g);
+int updateGame(Game *g);                // returns 1 when the player quits
 
-// ================= input.c: keyboard input: start menu options, W/A/S/D snake control =================
-int editNumber(int value);
+// input.c: keyboard input
 void updateMenu(Game *g);
-void setDirection(Game *g, int dx, int dy);
-void takeQueuedDirection(Snake *s);
 void handleInput(Game *g);
+void takeQueuedDirection(Snake *s);
 
-// ================= assets.c: assets: sound effects made in code, loading and freeing images =================
-Sound makeSound(float startFreq, float endFreq, float duration);
+// assets.c: sounds made in code, images from the assets folder
 void loadSounds(Sounds *s);
 void unloadSounds(Sounds *s);
-float noteFreq(int semitone);
-Sound makeMusic(void);
-Texture2D loadImage(const char *path);
 void loadTextures(Textures *t);
 void unloadTextures(Textures *t);
 
-// ================= draw.c: drawing functions and opening the window =================
-void drawCenterText(const char *text, int y, int size, Color color);
-void drawNeonText(const char *text, int y, int size, Color color);
-float directionToAngle(int dx, int dy);
-void drawSpriteSize(Game *g, Texture2D texture, float x, float y, float angle, int flip,
-                    float w, float h, Color fallback);
-void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale, Color fallback);
-float cornerAngle(int ax, int ay, int bx, int by);
-float smoothStep(float p);
-float turnAngle(float a, float b, float p);
-void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color color);
-void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int dy, float p,
-                 float angle, float scale, Color color);
-void drawSnake(Game *g);
-void drawMetalPlate(Game *g, int x, int y);
-void drawEnergyGrid(Game *g);
-void drawMenuRows(Game *g, int firstY, int gap, int size);
-const char *modeHint(Game *g);
-void drawDashedRect(Rectangle r, float thick, Color color);
-void drawMenu(Game *g);
-void drawFloor(Game *g);
-void drawItems(Game *g);
-void drawBorder(Game *g);
-void drawHud(Game *g);
-void drawPauseScreen(Game *g);
-void drawEndScreen(Game *g);
-void drawPlaying(Game *g);
-void drawGame(Game *g, RenderTexture2D canvas);
+// draw.c: drawing and the window
 void openWindow(void);
-void drawGoldenApple(Game *g, int x, int y);
+void drawGame(Game *g, RenderTexture2D canvas);
 
-// ================= effects.c: effects: particles, floating text, shake, flash, background music =================
+// effects.c: particles, floating text, shake, flash, background music
 void spawnBurst(Game *g, int cellX, int cellY, Color color);
 void addPopup(Game *g, int cellX, int cellY, const char *text, Color color);
 void startCrashEffect(Game *g);

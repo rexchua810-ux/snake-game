@@ -11,7 +11,7 @@
 
 // "calculate" a sound effect in code: the frequency slides from startFreq to endFreq over duration seconds
 //   frequency = vibrations per second; higher = higher pitch
-Sound makeSound(float startFreq, float endFreq, float duration)
+static Sound makeSound(float startFreq, float endFreq, float duration)
 {
     int sampleRate = 44100;                      // 44100 samples per second (CD quality)
     int count = (int)(sampleRate * duration);    // total number of samples
@@ -41,40 +41,15 @@ Sound makeSound(float startFreq, float endFreq, float duration)
     return sound;
 }
 
-// create all sound effects at once
-void loadSounds(Sounds *s)
-{
-    s->eat     = makeSound(600, 900, 0.08f);   // short rising "beep"
-    s->booster = makeSound(400, 1200, 0.25f);  // slide up
-    s->crash   = makeSound(300, 60, 0.4f);     // drop down
-    s->levelUp = makeSound(500, 1000, 0.35f);
-    s->win     = makeSound(400, 1600, 0.8f);
-    s->golden  = makeSound(800, 1600, 0.2f);   // golden apple: higher and brighter
-    s->music   = makeMusic();                  // background music
-    SetSoundVolume(s->music, MUSIC_VOLUME);
-}
-
-// free all sound effects
-void unloadSounds(Sounds *s)
-{
-    UnloadSound(s->eat);
-    UnloadSound(s->booster);
-    UnloadSound(s->crash);
-    UnloadSound(s->levelUp);
-    UnloadSound(s->win);
-    UnloadSound(s->golden);
-    UnloadSound(s->music);
-}
-
 // frequency of a note. semitone = semitones away from A (440 Hz); 12 semitones higher (one octave) doubles the frequency
-float noteFreq(int semitone)
+static float noteFreq(int semitone)
 {
     return 440.0f * powf(2.0f, semitone / 12.0f);
 }
 
 // "compose" in code: 8 seconds of looping retro electronic music
 //   chords: Am → F → C → G (one bar each), the lead is a fast arpeggio, with a bass line below
-Sound makeMusic(void)
+static Sound makeMusic(void)
 {
     int sampleRate = 44100;
     float stepTime = 0.125f;                    // each step (16th note) is 0.125 s = 120 beats per minute
@@ -132,10 +107,35 @@ Sound makeMusic(void)
     return music;
 }
 
+// create all sound effects at once
+void loadSounds(Sounds *s)
+{
+    s->eat     = makeSound(600, 900, 0.08f);   // short rising "beep"
+    s->booster = makeSound(400, 1200, 0.25f);  // slide up
+    s->crash   = makeSound(300, 60, 0.4f);     // drop down
+    s->levelUp = makeSound(500, 1000, 0.35f);
+    s->win     = makeSound(400, 1600, 0.8f);
+    s->golden  = makeSound(800, 1600, 0.2f);   // golden apple: higher and brighter
+    s->music   = makeMusic();                  // background music
+    SetSoundVolume(s->music, MUSIC_VOLUME);
+}
+
+// free all sound effects
+void unloadSounds(Sounds *s)
+{
+    UnloadSound(s->eat);
+    UnloadSound(s->booster);
+    UnloadSound(s->crash);
+    UnloadSound(s->levelUp);
+    UnloadSound(s->win);
+    UnloadSound(s->golden);
+    UnloadSound(s->music);
+}
+
 // ================= Images =================
 
 // load one image; a missing file is fine, a colored block is drawn instead
-Texture2D loadImage(const char *path)
+static Texture2D loadImage(const char *path)
 {
     Texture2D texture = { 0 };
     if (FileExists(path))

@@ -10,14 +10,14 @@
 // ================= Drawing =================
 
 // draw text centered horizontally
-void drawCenterText(const char *text, int y, int size, Color color)
+static void drawCenterText(const char *text, int y, int size, Color color)
 {
     int textWidth = MeasureText(text, size);
     DrawText(text, (SCREEN_W - textWidth) / 2, y, size, color);
 }
 
 // glowing text: draw a few semi-transparent copies around it as the "glow", then the text itself
-void drawNeonText(const char *text, int y, int size, Color color)
+static void drawNeonText(const char *text, int y, int size, Color color)
 {
     int textWidth = MeasureText(text, size);
     int x = (SCREEN_W - textWidth) / 2;
@@ -30,7 +30,7 @@ void drawNeonText(const char *text, int y, int size, Color color)
 
 // direction → rotation angle (images face right, other directions are rotated)
 //   right 0°, down 90°, left 180°, up 270° (screen y grows downwards, so angles go clockwise)
-float directionToAngle(int dx, int dy)
+static float directionToAngle(int dx, int dy)
 {
     if (dx == 1)  return 0;
     if (dy == 1)  return 90;
@@ -63,13 +63,13 @@ void drawSpriteSize(Game *g, Texture2D texture, float x, float y, float angle, i
 }
 
 // normal drawing: same width and height, scale = how many times bigger
-void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale, Color fallback)
+static void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale, Color fallback)
 {
     drawSpriteSize(g, texture, x, y, angle, flip, scale, scale, fallback);
 }
 
 // corner rotation. corner.png connects right and bottom; rotated 90° it connects bottom and left, and so on
-float cornerAngle(int ax, int ay, int bx, int by)
+static float cornerAngle(int ax, int ay, int bx, int by)
 {
     int right = (ax == 1  || bx == 1);
     int left  = (ax == -1 || bx == -1);
@@ -84,7 +84,7 @@ float cornerAngle(int ax, int ay, int bx, int by)
 }
 
 // turn progress 0 ~ 1 into "slow - fast - slow", so turning the head looks natural
-float smoothStep(float p)
+static float smoothStep(float p)
 {
     if (p < 0) p = 0;
     if (p > 1) p = 1;
@@ -92,7 +92,7 @@ float smoothStep(float p)
 }
 
 // turn smoothly from angle a to angle b (p goes from 0 to 1), the shorter way round
-float turnAngle(float a, float b, float p)
+static float turnAngle(float a, float b, float p)
 {
     float diff = b - a;
     while (diff > 180)  diff -= 360;
@@ -101,7 +101,7 @@ float turnAngle(float a, float b, float p)
 }
 
 // draw one body segment: use the directions towards the head (ax, ay) and towards the tail (bx, by) to choose straight or corner
-void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color color)
+static void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color color)
 {
     Textures *t = &g->textures;
     if (ax == -bx && ay == -by)           // opposite directions → straight
@@ -146,7 +146,7 @@ void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int d
 // draw the snake (smooth version)
 //   body segments stay in their cells; only the head and tail slide between two cells depending on how far this step has gone.
 //   This makes the snake crawl continuously instead of jumping cell by cell.
-void drawSnake(Game *g)
+static void drawSnake(Game *g)
 {
     Snake *s = &g->snake;
     Textures *t = &g->textures;
@@ -209,7 +209,7 @@ void drawSnake(Game *g)
 }
 
 // draw one metal plate (one cell) in code: base color + light top-left edge + dark bottom-right edge + four rivets
-void drawMetalPlate(Game *g, int x, int y)
+static void drawMetalPlate(Game *g, int x, int y)
 {
     int c = g->cell;
     int left = g->offsetX + x * c;
@@ -233,7 +233,7 @@ void drawMetalPlate(Game *g, int x, int y)
 }
 
 // glowing energy lines: the grid slowly gets brighter and darker over time
-void drawEnergyGrid(Game *g)
+static void drawEnergyGrid(Game *g)
 {
     // sinf gives -1 ~ 1, so the transparency moves between 0.2 and 0.5
     float glow = 0.35f + 0.15f * sinf(GetTime() * 2);
@@ -255,7 +255,7 @@ void drawEnergyGrid(Game *g)
 }
 
 // the three options on the start menu (width, height, mode): the selected one glows, the others are dim
-void drawMenuRows(Game *g, int firstY, int gap, int size)
+static void drawMenuRows(Game *g, int firstY, int gap, int size)
 {
     const char *modeName = "Classic";
     if (g->mode == NO_WALLS)
@@ -276,7 +276,7 @@ void drawMenuRows(Game *g, int firstY, int gap, int size)
 }
 
 // mode description
-const char *modeHint(Game *g)
+static const char *modeHint(Game *g)
 {
     if (g->mode == CLASSIC)
         return "Hit the wall = lose a life";
@@ -284,7 +284,7 @@ const char *modeHint(Game *g)
 }
 
 // draw a dashed rectangle: every 12 pixels, 8 drawn and 4 empty
-void drawDashedRect(Rectangle r, float thick, Color color)
+static void drawDashedRect(Rectangle r, float thick, Color color)
 {
     float dash = 8, step = 12;
     for (float x = r.x; x < r.x + r.width; x += step)          // top and bottom
@@ -302,7 +302,7 @@ void drawDashedRect(Rectangle r, float thick, Color color)
 }
 
 // draw the start menu
-void drawMenu(Game *g)
+static void drawMenu(Game *g)
 {
     // with a cover image: the title and key hints are already in the image, only the changing text is written into the middle panel
     if (g->textures.cover.id > 0)
@@ -329,8 +329,31 @@ void drawMenu(Game *g)
     drawNeonText("ENTER: start", 600, 20, NEON_YELLOW);
 }
 
+// golden apple: a "breathing" golden glow behind the apple and small stars circling it; blinks when about to disappear
+static void drawGoldenApple(Game *g, int x, int y)
+{
+    if (g->goldenTimer < 2 && (int)(g->goldenTimer * 8) % 2 == 0)   // less than 2 seconds left: blink
+        return;
+
+    float cx = g->offsetX + (x + 0.5f) * g->cell;     // cell center (pixels)
+    float cy = g->offsetY + (y + 0.5f) * g->cell;
+    float pulse = 0.5f + 0.5f * sinf(GetTime() * 6);  // moves between 0 and 1
+
+    DrawCircle(cx, cy, g->cell * (0.55f + 0.1f * pulse), Fade(GOLD_COLOR, 0.25f + 0.2f * pulse));
+    drawSprite(g, g->textures.apple, x, y, 0, 0, 1.1f, GOLD_COLOR);   // apple drawn a bit bigger
+
+    // two small stars (diamonds) circling the apple
+    float angle = GetTime() * 3;
+    for (int i = 0; i < 2; i++)
+    {
+        float a = angle + i * 3.14159f;
+        Vector2 star = { cx + cosf(a) * g->cell * 0.55f, cy + sinf(a) * g->cell * 0.55f };
+        DrawPoly(star, 4, g->cell * 0.1f, 45, GOLD_COLOR);
+    }
+}
+
 // floor: use floor.png if it exists, otherwise draw metal plates in code
-void drawFloor(Game *g)
+static void drawFloor(Game *g)
 {
     for (int y = 0; y < g->height; y++)
     {
@@ -345,7 +368,7 @@ void drawFloor(Game *g)
 }
 
 // food, obstacles, boosters and the golden apple
-void drawItems(Game *g)
+static void drawItems(Game *g)
 {
     Textures *t = &g->textures;
     for (int y = 0; y < g->height; y++)
@@ -366,7 +389,7 @@ void drawItems(Game *g)
 
 // map border: aqua green (contrasts with purple)
 //   solid line in Classic (a wall), dashed line in No Walls (can pass through)
-void drawBorder(Game *g)
+static void drawBorder(Game *g)
 {
     Rectangle frame = { g->offsetX - 3, g->offsetY - 3, g->width * g->cell + 6, g->height * g->cell + 6 };
     Rectangle glow  = { frame.x - 3, frame.y - 3, frame.width + 6, frame.height + 6 };
@@ -383,7 +406,7 @@ void drawBorder(Game *g)
 }
 
 // top bar: score, lives and level with a neon line underneath, plus the current message
-void drawHud(Game *g)
+static void drawHud(Game *g)
 {
     DrawText(TextFormat("Score: %d / %d", g->score, WIN_SCORE), 10, 20, 20, NEON_CYAN);
     DrawText(TextFormat("Lives: %d", g->lives), 200, 20, 20, NEON_PINK);
@@ -396,7 +419,7 @@ void drawHud(Game *g)
 }
 
 // pause screen: darken everything and show the keys
-void drawPauseScreen(Game *g)
+static void drawPauseScreen(Game *g)
 {
     DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
     drawNeonText("PAUSED", SCREEN_H / 2 - 40, 40, NEON_CYAN);
@@ -408,7 +431,7 @@ void drawPauseScreen(Game *g)
 }
 
 // end screen: win or lose, then ask to restart, go to the menu or quit
-void drawEndScreen(Game *g)
+static void drawEndScreen(Game *g)
 {
     DrawRectangle(0, 0, SCREEN_W, SCREEN_H, Fade(BLACK, 0.6f));
     int midY = SCREEN_H / 2;
@@ -420,7 +443,7 @@ void drawEndScreen(Game *g)
 }
 
 // draw the game screen, from the bottom layer to the top layer
-void drawPlaying(Game *g)
+static void drawPlaying(Game *g)
 {
     drawFloor(g);
     drawEnergyGrid(g);
@@ -478,29 +501,6 @@ void drawGame(Game *g, RenderTexture2D canvas)
     ClearBackground(BLACK);
     DrawTexturePro(canvas.texture, source, dest, (Vector2){ 0, 0 }, 0, WHITE);
     EndDrawing();
-}
-
-// golden apple: a "breathing" golden glow behind the apple and small stars circling it; blinks when about to disappear
-void drawGoldenApple(Game *g, int x, int y)
-{
-    if (g->goldenTimer < 2 && (int)(g->goldenTimer * 8) % 2 == 0)   // less than 2 seconds left: blink
-        return;
-
-    float cx = g->offsetX + (x + 0.5f) * g->cell;     // cell center (pixels)
-    float cy = g->offsetY + (y + 0.5f) * g->cell;
-    float pulse = 0.5f + 0.5f * sinf(GetTime() * 6);  // moves between 0 and 1
-
-    DrawCircle(cx, cy, g->cell * (0.55f + 0.1f * pulse), Fade(GOLD_COLOR, 0.25f + 0.2f * pulse));
-    drawSprite(g, g->textures.apple, x, y, 0, 0, 1.1f, GOLD_COLOR);   // apple drawn a bit bigger
-
-    // two small stars (diamonds) circling the apple
-    float angle = GetTime() * 3;
-    for (int i = 0; i < 2; i++)
-    {
-        float a = angle + i * 3.14159f;
-        Vector2 star = { cx + cosf(a) * g->cell * 0.55f, cy + sinf(a) * g->cell * 0.55f };
-        DrawPoly(star, 4, g->cell * 0.1f, 45, GOLD_COLOR);
-    }
 }
 
 // open the window: resizable, and never bigger than the screen at the start
