@@ -1,7 +1,5 @@
 // game.h — shared by all files: constants, colors, structs, and the functions each .c file provides
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 //   every .c file starts with #include "game.h", so it knows which functions the other files offer
 
 #ifndef GAME_H      // prevents the same .c file from including this header twice
@@ -26,7 +24,8 @@
 #define START_LIVES   1     // number of lives at the start
 #define MESSAGE_TIME  1.5f  // how many seconds a message stays on screen
 #define SNAKE_SCALE   1.5f  // snake body is drawn this many times the cell size (bigger = thicker)
-#define HEAD_SCALE    1.0f  // snake head is drawn this many times the cell size (kept smaller so it doesn't look like a ball)
+// snake head is drawn this many times the cell size (kept smaller so it doesn't look like a ball)
+#define HEAD_SCALE    1.0f
 
 // Levels
 #define FOODS_PER_LEVEL 5      // level up every 5 food items
@@ -35,7 +34,8 @@
 #define LEVEL_OBSTACLES 2      // 2 more obstacles every level
 
 // Golden apple
-#define GOLDEN_CHANCE   4      // after each normal apple there is a 1 in 4 chance a golden apple appears
+// after each normal apple there is a 1 in 4 chance a golden apple appears
+#define GOLDEN_CHANCE   4
 #define GOLDEN_TIME     6.0f   // seconds before the golden apple disappears
 #define GOLDEN_POINTS   3      // points for a golden apple
 
@@ -50,7 +50,8 @@
 #define MAX_POPUPS      8      // maximum floating texts on screen (+1, +3)
 #define POPUP_LIFE      0.8f   // seconds a floating text lives
 #define MUSIC_VOLUME    0.35f  // background music volume (0 ~ 1)
-#define SAFE_DISTANCE   4      // new obstacles must be at least this far from the head, so they never appear right in front of it
+// new obstacles must be at least this far from the head, so they never appear right in front of it
+#define SAFE_DISTANCE   4
 
 // ===== Map size range and defaults =====
 #define MIN_SIZE     5
@@ -62,7 +63,8 @@
 #define BG_COLOR     (Color){ 12, 6, 28, 255 }     // dark purple-black background
 #define NEON_PINK    (Color){ 255, 45, 200, 255 }
 #define NEON_CYAN    (Color){ 0, 240, 255, 255 }
-#define NEON_GREEN   (Color){ 0, 255, 170, 255 }   // aqua green: map border (contrasts with the purple background)
+// aqua green: map border (contrasts with the purple background)
+#define NEON_GREEN   (Color){ 0, 255, 170, 255 }
 #define NEON_PURPLE  (Color){ 170, 80, 255, 255 }
 #define NEON_YELLOW  (Color){ 255, 230, 0, 255 }
 #define NEON_RED     (Color){ 255, 50, 80, 255 }
@@ -70,7 +72,8 @@
 #define DIM_TEXT     (Color){ 120, 100, 160, 255 }  // less important text
 
 // ===== Metal floor colors =====
-#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }    // plate base color (dark green, so the purple snake stands out)
+// plate base color (dark green, so the purple snake stands out)
+#define PLATE_COLOR  (Color){ 16, 46, 34, 255 }
 #define PLATE_LIGHT  (Color){ 30, 74, 56, 255 }    // plate highlight (top-left edge)
 #define PLATE_DARK   (Color){ 6, 22, 15, 255 }     // plate shadow (bottom-right edge)
 #define RIVET_COLOR  (Color){ 52, 104, 82, 255 }   // rivets
@@ -105,14 +108,17 @@ typedef struct {
     int length;      // current number of segments
     int dirX, dirY;  // moving direction (the direction of the last real step)
 
-    // key queue: if two keys are pressed within one step (e.g. W then A quickly), both are used in order instead of being lost
+    // key queue: if two keys are pressed within one step (e.g. W then A quickly), both are used in
+    //   order instead of being lost
     int queueX[2], queueY[2];
     int queueCount;
 
     // data for smooth movement
-    int prevTailX, prevTailY;     // which cell the tail was in last step (it slides from there when drawn)
+    // which cell the tail was in last step (it slides from there when drawn)
+    int prevTailX, prevTailY;
     int tailDirX, tailDirY;       // direction the tail slides this step
-    int oldTailDirX, oldTailDirY; // tail direction of the previous step (used to rotate smoothly at corners)
+    // tail direction of the previous step (used to rotate smoothly at corners)
+    int oldTailDirX, oldTailDirY;
 } Snake;
 
 // one particle (the small squares that burst out when something is eaten)
@@ -152,7 +158,8 @@ typedef struct {
     Texture2D booster;   // booster
     Texture2D obstacle;  // obstacle
     Texture2D floor;     // floor (optional; if missing, the code draws metal plates)
-    Texture2D cover;     // start menu cover (600x660, middle panel left empty, the code writes the text)
+    // start menu cover (600x660, middle panel left empty, the code writes the text)
+    Texture2D cover;
 } Textures;
 
 // all game data lives here, grouped by topic

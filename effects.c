@@ -1,7 +1,6 @@
-// effects.c — effects: particles and floating text when eating, shake and flash on crashes, background music
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// effects.c — effects: particles and floating text when eating, shake and flash on crashes,
+//   background music
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdio.h>    // snprintf
 #include <stdlib.h>   // rand
@@ -25,7 +24,8 @@ void spawnBurst(Game *g, int cellX, int cellY, Color color)
             continue;
 
         float angle = (rand() % 360) * 3.14159f / 180;   // random direction (converted to radians)
-        float speed = 60 + rand() % 120;                  // random speed: 60 ~ 180 pixels per second
+        // random speed: 60 ~ 180 pixels per second
+        float speed = 60 + rand() % 120;
         p->x = centerX;
         p->y = centerY;
         p->vx = cosf(angle) * speed;

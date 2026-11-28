@@ -1,7 +1,5 @@
 // input.c — keyboard input: start menu options, W/A/S/D snake control
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include "game.h"
 
@@ -64,7 +62,8 @@ void updateMenu(Game *g)
 // ================= Snake control =================
 
 // direction key pressed: queue it, the snake turns on its next real step
-//   compared with the last queued direction: the same direction is skipped, the opposite one (U-turn) is not allowed
+// compared with the last queued direction: the same direction is skipped, the opposite one
+//   (U-turn) is not allowed
 static void setDirection(Game *g, int dx, int dy)
 {
     Snake *s = &g->snake;

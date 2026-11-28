@@ -1,7 +1,5 @@
 // assets.c — assets: sound effects made in code, loading and freeing images
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdlib.h>
 #include <math.h>     // powf、fabsf
@@ -9,7 +7,8 @@
 
 // ================= Sound effects =================
 
-// "calculate" a sound effect in code: the frequency slides from startFreq to endFreq over duration seconds
+// "calculate" a sound effect in code: the frequency slides from startFreq to endFreq over duration
+//   seconds
 //   frequency = vibrations per second; higher = higher pitch
 static Sound makeSound(float startFreq, float endFreq, float duration)
 {
@@ -28,7 +27,8 @@ static Sound makeSound(float startFreq, float endFreq, float duration)
 
         float volume = 0.3f * (1 - progress);    // quieter towards the end (fade out)
 
-        // square wave: push up for the first half of each vibration, pull down for the second half, sounds like a retro console
+        // square wave: push up for the first half of each vibration, pull down for the second
+        //   half, sounds like a retro console
         if (phase < 0.5f)
             samples[i] = (short)(volume * 32767);
         else
@@ -41,7 +41,8 @@ static Sound makeSound(float startFreq, float endFreq, float duration)
     return sound;
 }
 
-// frequency of a note. semitone = semitones away from A (440 Hz); 12 semitones higher (one octave) doubles the frequency
+// frequency of a note. semitone = semitones away from A (440 Hz); 12 semitones higher (one octave)
+//   doubles the frequency
 static float noteFreq(int semitone)
 {
     return 440.0f * powf(2.0f, semitone / 12.0f);
@@ -52,7 +53,8 @@ static float noteFreq(int semitone)
 static Sound makeMusic(void)
 {
     int sampleRate = 44100;
-    float stepTime = 0.125f;                    // each step (16th note) is 0.125 s = 120 beats per minute
+    // each step (16th note) is 0.125 s = 120 beats per minute
+    float stepTime = 0.125f;
     int steps = 64;                             // 4 bars × 16 steps = 8 seconds
     int stepSamples = (int)(sampleRate * stepTime);
     int count = steps * stepSamples;
@@ -72,7 +74,8 @@ static Sound makeMusic(void)
 
         float lead = noteFreq(notes[arp[step % 4]]);
         if (step % 8 >= 4)
-            lead *= 2;                          // one octave higher on the second half of the beat, for more variety
+            // one octave higher on the second half of the beat, for more variety
+            lead *= 2;
         float bass = noteFreq(root - 24);       // bass: two octaves lower
 
         for (int i = 0; i < stepSamples; i++)
@@ -86,7 +89,8 @@ static Sound makeMusic(void)
             if (bassPhase >= 1)
                 bassPhase -= 1;
 
-            // lead: narrow square wave (up only 25% of the time), each note fades quickly, sounds like "beep beep beep"
+            // lead: narrow square wave (up only 25% of the time), each note fades quickly, sounds
+            //   like "beep beep beep"
             float leadWave = -1;
             if (leadPhase < 0.25f)
                 leadWave = 1;
@@ -143,15 +147,18 @@ static Texture2D loadImage(const char *path)
         texture = LoadTexture(path);
         if (texture.width > 64)
         {
-            // large images (e.g. 512x512) are shrunk a lot: build smaller versions (mipmaps) first to avoid jagged edges
+            // large images (e.g. 512x512) are shrunk a lot: build smaller versions (mipmaps) first
+            //   to avoid jagged edges
             GenTextureMipmaps(&texture);
             SetTextureFilter(texture, TEXTURE_FILTER_TRILINEAR);
         }
         else
         {
-            SetTextureFilter(texture, TEXTURE_FILTER_POINT);   // keep small pixel art sharp when enlarged
+            // keep small pixel art sharp when enlarged
+            SetTextureFilter(texture, TEXTURE_FILTER_POINT);
         }
-        // don't "repeat" the image edges: otherwise the left edge picks up pixels from the right and a thin line appears
+        // don't "repeat" the image edges: otherwise the left edge picks up pixels from the right
+        //   and a thin line appears
         SetTextureWrap(texture, TEXTURE_WRAP_CLAMP);
     }
     return texture;

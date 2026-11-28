@@ -1,7 +1,5 @@
 // map.c — create/free the map, place items on random empty cells, directions
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdlib.h>
 #include "game.h"
@@ -39,7 +37,8 @@ void neighborDir(int ax, int ay, int bx, int by, int *dx, int *dy)
 {
     *dx = bx - ax;
     *dy = by - ay;
-    // No Walls mode: if the two cells are on opposite edges (e.g. 0 and width-1), convert back to 1 or -1
+    // No Walls mode: if the two cells are on opposite edges (e.g. 0 and width-1), convert back to
+    //   1 or -1
     if (*dx > 1)  *dx = -1;
     if (*dx < -1) *dx = 1;
     if (*dy > 1)  *dy = -1;

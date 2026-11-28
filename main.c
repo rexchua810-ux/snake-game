@@ -1,7 +1,5 @@
 // main.c — program entry: initialize → game loop → clean up
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdlib.h>
 #include <time.h>

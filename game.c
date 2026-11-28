@@ -1,7 +1,5 @@
 // game.c — game rules: start/end, boosters and lives, levels, what happens on every step
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdio.h>    // snprintf
 #include <stdlib.h>
@@ -76,7 +74,8 @@ static void resetGame(Game *g)
 // Enter on the start menu: allocate memory for the chosen size, then start
 void startGame(Game *g)
 {
-    // work out the cell size so the map fits in the 600x600 area (with BOARD_MARGIN around it for the border)
+    // work out the cell size so the map fits in the 600x600 area (with BOARD_MARGIN around it for
+    //   the border)
     int space = BOARD - 2 * BOARD_MARGIN;
     if (g->width > g->height)
         g->cell = space / g->width;
@@ -88,7 +87,8 @@ void startGame(Game *g)
     g->offsetY = HUD_H + (BOARD - g->height * g->cell) / 2;
 
     g->map = createMap(g->width, g->height);
-    g->snake.x = malloc(g->width * g->height * sizeof(int));  // the snake can never be longer than the whole map
+    // the snake can never be longer than the whole map
+    g->snake.x = malloc(g->width * g->height * sizeof(int));
     g->snake.y = malloc(g->width * g->height * sizeof(int));
 
     resetGame(g);
@@ -138,7 +138,8 @@ static void applyBooster(Game *g)
         // the tail jumps straight to its new position, no sliding this step
         g->snake.prevTailX = g->snake.x[g->snake.length - 1];
         g->snake.prevTailY = g->snake.y[g->snake.length - 1];
-        segmentDir(g, g->snake.length - 1, g->snake.length - 2, &g->snake.tailDirX, &g->snake.tailDirY);
+        segmentDir(g, g->snake.length - 1, g->snake.length - 2,
+                   &g->snake.tailDirX, &g->snake.tailDirY);
         g->snake.oldTailDirX = g->snake.tailDirX;
         g->snake.oldTailDirY = g->snake.tailDirY;
         showMessage(g, "Shrink!");
@@ -150,7 +151,8 @@ static void applyBooster(Game *g)
     }
 }
 
-// crash: lose a life. With lives left, restart from the start position; with none left, the game is lost
+// crash: lose a life. With lives left, restart from the start position; with none left, the game
+//   is lost
 static void loseLife(Game *g)
 {
     PlaySound(g->sounds.crash);
@@ -183,7 +185,8 @@ static void levelUp(Game *g)
     showMessage(g, text);
 }
 
-// level up when the score is high enough. Uses while: a golden apple adds 3 points and may cross a level boundary
+// level up when the score is high enough. Uses while: a golden apple adds 3 points and may cross a
+//   level boundary
 static void checkLevelUp(Game *g)
 {
     while (g->level < g->score / FOODS_PER_LEVEL + 1)
@@ -275,7 +278,8 @@ static void eatItem(Game *g, int x, int y, int item)
     }
     else
     {
-        return;                                // nothing to eat (an empty cell, or an obstacle while invincible)
+        // nothing to eat (an empty cell, or an obstacle while invincible)
+        return;
     }
     g->map[y][x] = EMPTY;                      // the eaten item disappears from the map
 }
@@ -312,7 +316,8 @@ static void moveSnake(Game *g, int x, int y, int grow)
         neighborDir(oldTailX, oldTailY, s->x[last], s->y[last], &s->tailDirX, &s->tailDirY);
 }
 
-// after eating (the snake has already moved): check for a win, place new items, level up, apply a booster
+// after eating (the snake has already moved): check for a win, place new items, level up, apply a
+//   booster
 static void afterEating(Game *g, int item)
 {
     if (item == FOOD || item == GOLDEN)
@@ -399,9 +404,11 @@ static void updatePlaying(Game *g)
     float moveTime = getMoveTime(g);   // speed depends on the level
     if (g->timer >= moveTime)
     {
-        // subtract instead of resetting to 0: leftover time goes to the next step, so the rhythm stays even
+        // subtract instead of resetting to 0: leftover time goes to the next step, so the rhythm
+        //   stays even
         g->timer -= moveTime;
-        if (g->timer > moveTime)       // after a long freeze (e.g. dragging the window) don't take several steps at once
+        // after a long freeze (e.g. dragging the window) don't take several steps at once
+        if (g->timer > moveTime)
             g->timer = 0;
         stepGame(g);
     }
@@ -428,7 +435,8 @@ int updateGame(Game *g)
         updateEffects(g, GetFrameTime());   // let shake and particles finish on the end screen too
         if (IsKeyPressed(KEY_R))
             resetGame(g);
-        if (IsKeyPressed(KEY_M))     // back to the start menu (the size will be chosen again, so free the memory first)
+        // back to the start menu (the size will be chosen again, so free the memory first)
+        if (IsKeyPressed(KEY_M))
         {
             freeGame(g);
             g->state = MENU;

@@ -1,7 +1,5 @@
 // draw.c — drawing functions and opening the window
-// AI disclosure: parts of this file were written with the help of AI tools (Claude / Claude Code).
-//   The author reviewed the code, tested it in the game, and can explain how it works.
-//   See "Use of Generative AI" in README.md for details.
+// AI disclosure: written with help from AI tools (Claude / Claude Code); see README.md.
 
 #include <stdlib.h>   // rand
 #include <math.h>     // sinf、fminf
@@ -38,8 +36,10 @@ static float directionToAngle(int dx, int dy)
     return 270;
 }
 
-// draw an image on cell (x, y), with rotation; flip = 1 mirrors it horizontally. Without an image, draw a colored block
-//   x and y are floats: the image can be drawn between two cells (e.g. 3.5), so the snake can slide smoothly
+// draw an image on cell (x, y), with rotation; flip = 1 mirrors it horizontally. Without an image,
+//   draw a colored block
+// x and y are floats: the image can be drawn between two cells (e.g. 3.5), so the snake can slide
+//   smoothly
 //   w, h: image width and height in cells (e.g. 1.5 = 1.5 times a cell)
 void drawSpriteSize(Game *g, Texture2D texture, float x, float y, float angle, int flip,
                     float w, float h, Color fallback)
@@ -56,19 +56,23 @@ void drawSpriteSize(Game *g, Texture2D texture, float x, float y, float angle, i
 
     Rectangle source = { 0, 0, texture.width, texture.height };      // the whole image
     if (flip)
-        source.width = -source.width;                                 // negative width = mirrored horizontally
-    Rectangle dest = { left + cell / 2, top + cell / 2, w * cell, h * cell }; // drawn at the cell center
+        // negative width = mirrored horizontally
+        source.width = -source.width;
+    // drawn at the cell center
+    Rectangle dest = { left + cell / 2, top + cell / 2, w * cell, h * cell };
     Vector2 origin = { w * cell / 2, h * cell / 2 };                  // rotate around the center
     DrawTexturePro(texture, source, dest, origin, angle, WHITE);
 }
 
 // normal drawing: same width and height, scale = how many times bigger
-static void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip, float scale, Color fallback)
+static void drawSprite(Game *g, Texture2D texture, float x, float y, float angle, int flip,
+                       float scale, Color fallback)
 {
     drawSpriteSize(g, texture, x, y, angle, flip, scale, scale, fallback);
 }
 
-// corner rotation. corner.png connects right and bottom; rotated 90° it connects bottom and left, and so on
+// corner rotation. corner.png connects right and bottom; rotated 90° it connects bottom and left,
+//   and so on
 static float cornerAngle(int ax, int ay, int bx, int by)
 {
     int right = (ax == 1  || bx == 1);
@@ -100,7 +104,8 @@ static float turnAngle(float a, float b, float p)
     return a + diff * smoothStep(p);
 }
 
-// draw one body segment: use the directions towards the head (ax, ay) and towards the tail (bx, by) to choose straight or corner
+// draw one body segment: use the directions towards the head (ax, ay) and towards the tail (bx,
+//   by) to choose straight or corner
 static void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by, Color color)
 {
     Textures *t = &g->textures;
@@ -109,7 +114,8 @@ static void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by,
         float angle = 0;                  // horizontal
         if (ax == 0)
             angle = 90;                   // vertical
-        // exactly 1 cell long (segments don't overlap their patterns), thickness scaled by SNAKE_SCALE
+        // exactly 1 cell long (segments don't overlap their patterns), thickness scaled by
+        //   SNAKE_SCALE
         drawSpriteSize(g, t->body, x, y, angle, 0, 1, SNAKE_SCALE, color);
     }
     else                                  // otherwise → corner
@@ -122,7 +128,8 @@ static void drawBodyPiece(Game *g, int x, int y, int ax, int ay, int bx, int by,
 }
 
 // draw a sliding segment (head or tail): from cell (fromX, fromY), p cells in direction (dx, dy)
-//   No Walls mode, crossing an edge: draw it on both sides, clipped to the map, so it looks like it comes out of the opposite side
+// No Walls mode, crossing an edge: draw it on both sides, clipped to the map, so it looks like it
+//   comes out of the opposite side
 void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int dy, float p,
                  float angle, float scale, Color color)
 {
@@ -138,13 +145,16 @@ void drawSliding(Game *g, Texture2D texture, int fromX, int fromY, int dx, int d
     }
 
     BeginScissorMode(g->offsetX, g->offsetY, g->width * g->cell, g->height * g->cell);
-    drawSprite(g, texture, x, y, angle, 0, scale, color);                               // the part leaving
-    drawSprite(g, texture, x - dx * g->width, y - dy * g->height, angle, 0, scale, color); // the part coming in on the opposite side
+    // the part leaving
+    drawSprite(g, texture, x, y, angle, 0, scale, color);
+    // the part coming in on the opposite side
+    drawSprite(g, texture, x - dx * g->width, y - dy * g->height, angle, 0, scale, color);
     EndScissorMode();
 }
 
 // draw the snake (smooth version)
-//   body segments stay in their cells; only the head and tail slide between two cells depending on how far this step has gone.
+// body segments stay in their cells; only the head and tail slide between two cells depending on
+//   how far this step has gone.
 //   This makes the snake crawl continuously instead of jumping cell by cell.
 static void drawSnake(Game *g)
 {
@@ -161,9 +171,11 @@ static void drawSnake(Game *g)
     if (p > 1 || g->state != PLAYING)     // game over: stop in the middle of the cell
         p = 1;
 
-    // the snake images are bigger than a cell and overlap, so draw from tail to head: pieces nearer the head are drawn later, on top
+    // the snake images are bigger than a cell and overlap, so draw from tail to head: pieces
+    //   nearer the head are drawn later, on top
 
-    // 1. put a body piece under the cell the tail is entering (otherwise there is a gap between tail and body)
+    // 1. put a body piece under the cell the tail is entering (otherwise there is a gap between
+    //   tail and body)
     int last = s->length - 1;
     int tailMoving = (s->prevTailX != s->x[last] || s->prevTailY != s->y[last]);
     if (tailMoving)
@@ -173,7 +185,8 @@ static void drawSnake(Game *g)
         drawBodyPiece(g, s->x[last], s->y[last], ax, ay, -s->tailDirX, -s->tailDirY, bodyColor);
     }
 
-    // 2. tail: slides in from the previous cell; turns smoothly at corners (within the first half of the step)
+    // 2. tail: slides in from the previous cell; turns smoothly at corners (within the first half
+    //   of the step)
     float tailAngle = turnAngle(directionToAngle(s->oldTailDirX, s->oldTailDirY),
                                 directionToAngle(s->tailDirX, s->tailDirY), p * 2);
     if (tailMoving)
@@ -182,7 +195,8 @@ static void drawSnake(Game *g)
     else    // just ate: the tail does not move this step
         drawSprite(g, t->tail, s->x[last], s->y[last], tailAngle, 0, SNAKE_SCALE, NEON_PURPLE);
 
-    // 3. body: from the second-to-last segment to segment 1 (all centered in their cells, not moving)
+    // 3. body: from the second-to-last segment to segment 1 (all centered in their cells, not
+    //   moving)
     for (int i = last - 1; i >= 1; i--)
     {
         int ax, ay, bx, by;
@@ -192,7 +206,7 @@ static void drawSnake(Game *g)
     }
 
     // 4. head: slides from segment 1 towards segment 0; turns smoothly. Drawn last so it is on top
-    //    uses the direction actually moved, not the key just pressed, so the head doesn't turn early
+    // uses the direction actually moved, not the key just pressed, so the head doesn't turn early
     int dx, dy, oldDx, oldDy;
     segmentDir(g, 1, 0, &dx, &dy);           // direction of this step
     segmentDir(g, 2, 1, &oldDx, &oldDy);     // direction of the previous step
@@ -208,7 +222,8 @@ static void drawSnake(Game *g)
     }
 }
 
-// draw one metal plate (one cell) in code: base color + light top-left edge + dark bottom-right edge + four rivets
+// draw one metal plate (one cell) in code: base color + light top-left edge + dark bottom-right
+//   edge + four rivets
 static void drawMetalPlate(Game *g, int x, int y)
 {
     int c = g->cell;
@@ -221,7 +236,8 @@ static void drawMetalPlate(Game *g, int x, int y)
     DrawLine(left, top + c - 1, left + c, top + c - 1, PLATE_DARK);     // bottom shadow
     DrawLine(left + c - 1, top, left + c - 1, top + c, PLATE_DARK);     // right shadow
 
-    if (c >= 24)              // only draw rivets when the cell is big enough, otherwise they get crowded
+    // only draw rivets when the cell is big enough, otherwise they get crowded
+    if (c >= 24)
     {
         float r = c / 16.0f + 1;   // rivet radius
         int d = c / 6;             // rivet distance from the corner
@@ -254,7 +270,8 @@ static void drawEnergyGrid(Game *g)
     }
 }
 
-// the three options on the start menu (width, height, mode): the selected one glows, the others are dim
+// the three options on the start menu (width, height, mode): the selected one glows, the others
+//   are dim
 static void drawMenuRows(Game *g, int firstY, int gap, int size)
 {
     const char *modeName = "Classic";
@@ -304,7 +321,8 @@ static void drawDashedRect(Rectangle r, float thick, Color color)
 // draw the start menu
 static void drawMenu(Game *g)
 {
-    // with a cover image: the title and key hints are already in the image, only the changing text is written into the middle panel
+    // with a cover image: the title and key hints are already in the image, only the changing text
+    //   is written into the middle panel
     if (g->textures.cover.id > 0)
     {
         Texture2D cover = g->textures.cover;
@@ -329,10 +347,12 @@ static void drawMenu(Game *g)
     drawNeonText("ENTER: start", 600, 20, NEON_YELLOW);
 }
 
-// golden apple: a "breathing" golden glow behind the apple and small stars circling it; blinks when about to disappear
+// golden apple: a "breathing" golden glow behind the apple and small stars circling it; blinks
+//   when about to disappear
 static void drawGoldenApple(Game *g, int x, int y)
 {
-    if (g->goldenTimer < 2 && (int)(g->goldenTimer * 8) % 2 == 0)   // less than 2 seconds left: blink
+    // less than 2 seconds left: blink
+    if (g->goldenTimer < 2 && (int)(g->goldenTimer * 8) % 2 == 0)
         return;
 
     float cx = g->offsetX + (x + 0.5f) * g->cell;     // cell center (pixels)
@@ -391,7 +411,8 @@ static void drawItems(Game *g)
 //   solid line in Classic (a wall), dashed line in No Walls (can pass through)
 static void drawBorder(Game *g)
 {
-    Rectangle frame = { g->offsetX - 3, g->offsetY - 3, g->width * g->cell + 6, g->height * g->cell + 6 };
+    Rectangle frame = { g->offsetX - 3, g->offsetY - 3,
+                        g->width * g->cell + 6, g->height * g->cell + 6 };
     Rectangle glow  = { frame.x - 3, frame.y - 3, frame.width + 6, frame.height + 6 };
     if (g->mode == CLASSIC)
     {
@@ -475,7 +496,8 @@ void drawGame(Game *g, RenderTexture2D canvas)
         drawPlaying(g);
     EndTextureMode();
 
-    // 2. scale factor: how much width and height can each grow; use the smaller one so nothing is stretched or cut off
+    // 2. scale factor: how much width and height can each grow; use the smaller one so nothing is
+    //   stretched or cut off
     float scaleX = (float)GetScreenWidth() / SCREEN_W;
     float scaleY = (float)GetScreenHeight() / SCREEN_H;
     float scale = scaleX;
@@ -485,10 +507,13 @@ void drawGame(Game *g, RenderTexture2D canvas)
     // 3. size and position of the scaled canvas (centered in the window)
     float drawW = SCREEN_W * scale;
     float drawH = SCREEN_H * scale;
-    Rectangle source = { 0, 0, SCREEN_W, -SCREEN_H };   // negative height: the canvas is stored upside down and must be flipped back
-    Rectangle dest = { (GetScreenWidth() - drawW) / 2, (GetScreenHeight() - drawH) / 2, drawW, drawH };
+    // negative height: the canvas is stored upside down and must be flipped back
+    Rectangle source = { 0, 0, SCREEN_W, -SCREEN_H };
+    Rectangle dest = { (GetScreenWidth() - drawW) / 2, (GetScreenHeight() - drawH) / 2,
+                       drawW, drawH };
 
-    // screen shake: move the whole picture a few pixels in a random direction, less and less towards the end
+    // screen shake: move the whole picture a few pixels in a random direction, less and less
+    //   towards the end
     if (g->shakeTimer > 0)
     {
         int power = (int)(SHAKE_POWER * g->shakeTimer / SHAKE_TIME) + 1;
@@ -510,7 +535,8 @@ void openWindow(void)
     InitWindow(SCREEN_W, SCREEN_H, "Neon Snake");
     SetWindowMinSize(SCREEN_W / 2, SCREEN_H / 2);
 
-    // if the screen is not tall enough, shrink the window to fit (leave room for the Dock and title bar)
+    // if the screen is not tall enough, shrink the window to fit (leave room for the Dock and
+    //   title bar)
     int maxH = GetMonitorHeight(GetCurrentMonitor()) - 150;
     if (SCREEN_H > maxH)
         SetWindowSize(SCREEN_W * maxH / SCREEN_H, maxH);
